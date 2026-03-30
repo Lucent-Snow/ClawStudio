@@ -32,7 +32,7 @@ interface GatewayState {
   syncWorkspaceState: () => void;
   connect: (url: string, token: string) => Promise<void>;
   disconnect: () => Promise<void>;
-  createSession: () => Promise<string>;
+  createSession: (name?: string) => Promise<string>;
   resetSession: (key: string) => Promise<void>;
   deleteSession: (key: string) => Promise<string | null>;
   renameSession: (key: string, label: string) => Promise<void>;
@@ -112,9 +112,37 @@ function sessionNamespace(key: string | null | undefined): string {
   return normalized;
 }
 
-function buildNewSessionKey(sessions: SessionRow[], currentSessionKey: string | null, defaultSessionKey: string): string {
+function normalizeSessionKeyTail(name: string | null | undefined): string | null {
+  const normalized = name?.trim().normalize("NFKC") ?? "";
+  if (!normalized) {
+    return null;
+  }
+
+  const safeTail = normalized
+    .toLowerCase()
+    .replace(/[:/\\]+/g, "-")
+    .replace(/[\s_]+/g, "-")
+    .replace(/[^\p{L}\p{N}-]+/gu, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+  return safeTail || null;
+}
+
+function buildNewSessionKey(
+  sessions: SessionRow[],
+  currentSessionKey: string | null,
+  defaultSessionKey: string,
+  preferredName?: string,
+): string {
   const namespace = sessionNamespace(currentSessionKey || defaultSessionKey);
   const pattern = new RegExp(`^${namespace.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}:session-(\\d+)$`);
+  const existingKeys = new Set(
+    sessions
+      .map((session) => session.key)
+      .filter((key) => key.startsWith(`${namespace}:`)),
+  );
+  const preferredTail = normalizeSessionKeyTail(preferredName);
 
   let maxIndex = 0;
   for (const session of sessions) {
@@ -125,7 +153,19 @@ function buildNewSessionKey(sessions: SessionRow[], currentSessionKey: string | 
     }
   }
 
-  return `${namespace}:session-${maxIndex + 1}`;
+  const defaultTail = `session-${maxIndex + 1}`;
+  const baseTail = preferredTail ?? defaultTail;
+  const baseKey = `${namespace}:${baseTail}`;
+  if (!existingKeys.has(baseKey)) {
+    return baseKey;
+  }
+
+  let suffix = 2;
+  while (existingKeys.has(`${namespace}:${baseTail}-${suffix}`)) {
+    suffix += 1;
+  }
+
+  return `${namespace}:${baseTail}-${suffix}`;
 }
 
 function splitGatewayModelValue(model: string): { model: string; provider?: string } {
@@ -188,11 +228,12 @@ export const useGateway = create<GatewayState>()((set, get) => ({
     set({ status: "disconnected", error: null, sessions: [] });
   },
 
-  createSession: async () => {
+  createSession: async (name) => {
     const key = buildNewSessionKey(
       get().sessions,
       get().currentSessionKey,
       useSettings.getState().gateway.sessionKey,
+      name,
     );
     await retryGatewayRequest(() => gatewaySessionsReset(key, "new"));
     useWorkspace.getState().addSession(key);

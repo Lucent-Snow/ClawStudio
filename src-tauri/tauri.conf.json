@@ -66,7 +66,7 @@
     "updater": {
       "active": true,
       "dialog": false,
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IENFODIzMjA4NDUyMzI5NzQKUldSMEtTTkZDREtDem9ZN2RqWEk3VGMwZGIrSjEzc3RMNmdEV3A2NFJMc0g2N3VnWlRmek9LOEMK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IERGMTg4Mzk5RjlBQkU0OTUKUldTVjVLdjVtWU1ZM3lkUjVISGw1YkdtcTY2Q3RmOVFMbkdybFVMNlNqeXh1TzRxTk8yQ1ZScHcK",
       "endpoints": [
         "https://github.com/Lucent-Snow/ClawStudio/releases/latest/download/latest.json"
       ],

@@ -12,6 +12,9 @@ import styles from "./SettingsModal.module.css";
 
 type Tab = "gateway" | "admin" | "updates";
 
+const GITHUB_REPO_URL = "https://github.com/Lucent-Snow/ClawStudio";
+const GITHUB_RELEASES_URL = `${GITHUB_REPO_URL}/releases`;
+
 function formatUpdateStatus(status: UpdateStatus): string {
   switch (status) {
     case "idle":
@@ -476,6 +479,31 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
                   <div className={styles.sectionHint}>检测到新版本后会自动下载、安装并重启应用。</div>
                 </div>
                 <div className={styles.statusBadge}>{formatUpdateStatus(updateStatus)}</div>
+              </div>
+
+              <div className={styles.repoCard}>
+                <div className={styles.repoRow}>
+                  <span className={styles.label}>仓库</span>
+                  <a
+                    className={styles.inlineLink}
+                    href={GITHUB_REPO_URL}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Lucent-Snow/ClawStudio
+                  </a>
+                </div>
+                <div className={styles.repoRow}>
+                  <span className={styles.label}>发布源</span>
+                  <a
+                    className={styles.inlineLink}
+                    href={GITHUB_RELEASES_URL}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    GitHub Releases
+                  </a>
+                </div>
               </div>
 
               <label className={styles.toggleRow}>

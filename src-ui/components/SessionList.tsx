@@ -28,7 +28,6 @@ import {
   buildDisambiguatedSessionTitles,
   getSessionSourceTitle,
 } from "../lib/session-display";
-import { matchesSessionFilter } from "../lib/session-filter";
 import { broadcastSessionChange } from "../lib/window-sync";
 import type { SessionRow } from "../lib/types";
 import styles from "./SessionList.module.css";
@@ -188,14 +187,9 @@ export function SessionList({ onOpenWorkspaceManager }: { onOpenWorkspaceManager
   const syncWorkspaceState = useGateway((state) => state.syncWorkspaceState);
   const workspaceSessionKeys = useWorkspace((state) => state.sessionKeys);
   const sidebarCollapsed = useWorkspace((state) => state.sidebarCollapsed);
-  const filterText = useWorkspace((state) => state.filterText);
-  const filterPresets = useWorkspace((state) => state.filterPresets);
   const removeFromWorkspace = useWorkspace((state) => state.removeSession);
   const pruneWorkspace = useWorkspace((state) => state.reconcileSessions);
   const setSessionOrder = useWorkspace((state) => state.setSessionOrder);
-  const setFilterText = useWorkspace((state) => state.setFilterText);
-  const toggleFilterPreset = useWorkspace((state) => state.toggleFilterPreset);
-  const clearFilters = useWorkspace((state) => state.clearFilters);
   const toggleSidebarCollapsed = useWorkspace((state) => state.toggleSidebarCollapsed);
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [draftLabel, setDraftLabel] = useState("");
@@ -219,22 +213,14 @@ export function SessionList({ onOpenWorkspaceManager }: { onOpenWorkspaceManager
       .map((key) => byKey.get(key))
       .filter((session): session is SessionRow => Boolean(session));
   }, [sessions, workspaceSessionKeys]);
-  const filteredWorkspaceSessions = useMemo(
-    () =>
-      workspaceSessions.filter((session) =>
-        matchesSessionFilter(session, filterText.trim(), filterPresets),
-      ),
-    [filterPresets, filterText, workspaceSessions],
-  );
-  const filteredWorkspaceKeys = useMemo(
-    () => filteredWorkspaceSessions.map((session) => session.key),
-    [filteredWorkspaceSessions],
+  const workspaceKeys = useMemo(
+    () => workspaceSessions.map((session) => session.key),
+    [workspaceSessions],
   );
   const sessionTitles = useMemo(
-    () => buildDisambiguatedSessionTitles(filteredWorkspaceSessions),
-    [filteredWorkspaceSessions],
+    () => buildDisambiguatedSessionTitles(workspaceSessions),
+    [workspaceSessions],
   );
-  const hasActiveFilters = filterText.trim().length > 0 || filterPresets.subagent || filterPresets.cron;
 
   useEffect(() => {
     if (!menu) {
@@ -382,14 +368,14 @@ export function SessionList({ onOpenWorkspaceManager }: { onOpenWorkspaceManager
       return;
     }
 
-    if (!filteredWorkspaceKeys.includes(activeKey) || !filteredWorkspaceKeys.includes(overKey)) {
+    if (!workspaceKeys.includes(activeKey) || !workspaceKeys.includes(overKey)) {
       return;
     }
 
     setSessionOrder(
       reorderFilteredKeys(
         workspaceSessionKeys,
-        filteredWorkspaceKeys,
+        workspaceKeys,
         activeKey,
         overKey,
       ),
@@ -452,44 +438,8 @@ export function SessionList({ onOpenWorkspaceManager }: { onOpenWorkspaceManager
         </div>
       </div>
 
-      <div className={styles.filterPanel}>
-        <input
-          className={styles.filterInput}
-          value={filterText}
-          onChange={(event) => setFilterText(event.target.value)}
-          placeholder="关键词过滤"
-        />
-        <div className={styles.filterRow}>
-          <button
-            type="button"
-            className={`${styles.filterChip} ${filterPresets.subagent ? styles.filterChipActive : ""}`}
-            onClick={() => toggleFilterPreset("subagent")}
-          >
-            subagent
-          </button>
-          <button
-            type="button"
-            className={`${styles.filterChip} ${filterPresets.cron ? styles.filterChipActive : ""}`}
-            onClick={() => toggleFilterPreset("cron")}
-          >
-            cron
-          </button>
-          {hasActiveFilters && (
-            <button
-              type="button"
-              className={styles.filterClear}
-              onClick={clearFilters}
-            >
-              清空
-            </button>
-          )}
-        </div>
-      </div>
-
       {workspaceSessions.length === 0 ? (
         <div className={styles.empty}>工作区里还没有会话，点击右上角添加。</div>
-      ) : filteredWorkspaceSessions.length === 0 ? (
-        <div className={styles.empty}>没有匹配当前过滤条件的会话。</div>
       ) : (
         <DndContext
           sensors={sensors}
@@ -499,9 +449,9 @@ export function SessionList({ onOpenWorkspaceManager }: { onOpenWorkspaceManager
           onDragEnd={handleDragEnd}
           onDragCancel={() => setActiveDragKey(null)}
         >
-          <SortableContext items={filteredWorkspaceKeys} strategy={verticalListSortingStrategy}>
+          <SortableContext items={workspaceKeys} strategy={verticalListSortingStrategy}>
             <div className={styles.list}>
-              {filteredWorkspaceSessions.map((session) => (
+              {workspaceSessions.map((session) => (
                 <SortableSessionItem
                   key={session.key}
                   currentKey={currentKey}

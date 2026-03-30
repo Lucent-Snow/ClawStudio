@@ -7,3 +7,6 @@ target/
 .delegate_runs/
 .codex-temp-*.png
 .tester-session-*.png
+PLAN.md
+SPEC.md
+DESIGN.md

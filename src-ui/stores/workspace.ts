@@ -289,7 +289,7 @@ export const useWorkspace = create<WorkspaceState>()(
     }),
     {
       name: "clawstudio-workspace",
-      version: 2,
+      version: 4,
       partialize: (state) => ({
         sessionKeys: state.sessionKeys,
         openSessionKeys: state.openSessionKeys,
@@ -299,7 +299,7 @@ export const useWorkspace = create<WorkspaceState>()(
         filterPresets: state.filterPresets,
         initialized: state.initialized,
       }),
-      migrate: (persistedState) => {
+      migrate: (persistedState, version) => {
         if (!persistedState || typeof persistedState !== "object") {
           return {
             sessionKeys: [],
@@ -329,6 +329,17 @@ export const useWorkspace = create<WorkspaceState>()(
             ? candidate.filterPresets as Record<string, unknown>
             : {};
 
+        const nextFilterPresets =
+          version < 4
+            ? {
+                subagent: false,
+                cron: false,
+              }
+            : {
+                subagent: filterPresetsInput.subagent === true,
+                cron: filterPresetsInput.cron === true,
+              };
+
         return {
           ...normalizeOrders({
             sessionKeys,
@@ -337,10 +348,7 @@ export const useWorkspace = create<WorkspaceState>()(
           }),
           sidebarCollapsed: candidate.sidebarCollapsed === true,
           filterText: typeof candidate.filterText === "string" ? candidate.filterText : "",
-          filterPresets: {
-            subagent: filterPresetsInput.subagent === true,
-            cron: filterPresetsInput.cron === true,
-          },
+          filterPresets: nextFilterPresets,
           initialized: candidate.initialized === true || sessionKeys.length > 0 || openSessionKeys.length > 0,
         };
       },

@@ -17,20 +17,23 @@ export function buildSessionSearchText(session: SessionRow): string {
     .toLowerCase();
 }
 
-export function getSessionFilterTokens(
-  filterText: string,
-  filterPresets: Record<WorkspaceFilterPreset, boolean>,
-): string[] {
-  const textTokens = filterText
+function getSessionSearchTokens(filterText: string): string[] {
+  return filterText
     .split(/\s+/)
     .map((value) => value.trim().toLowerCase())
     .filter(Boolean);
+}
 
-  const presetTokens = (Object.entries(filterPresets) as Array<[WorkspaceFilterPreset, boolean]>)
-    .filter(([, enabled]) => enabled)
-    .map(([preset]) => preset);
+function sessionMatchesPreset(session: SessionRow, preset: WorkspaceFilterPreset): boolean {
+  return buildSessionSearchText(session).includes(preset);
+}
 
-  return [...textTokens, ...presetTokens];
+function sessionIsHiddenByPreset(
+  session: SessionRow,
+  filterPresets: Record<WorkspaceFilterPreset, boolean>,
+): boolean {
+  return (Object.entries(filterPresets) as Array<[WorkspaceFilterPreset, boolean]>)
+    .some(([preset, enabled]) => enabled && sessionMatchesPreset(session, preset));
 }
 
 export function matchesSessionFilter(
@@ -38,7 +41,11 @@ export function matchesSessionFilter(
   filterText: string,
   filterPresets: Record<WorkspaceFilterPreset, boolean>,
 ): boolean {
-  const tokens = getSessionFilterTokens(filterText, filterPresets);
+  if (sessionIsHiddenByPreset(session, filterPresets)) {
+    return false;
+  }
+
+  const tokens = getSessionSearchTokens(filterText);
   if (tokens.length === 0) {
     return true;
   }

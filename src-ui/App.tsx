@@ -4,6 +4,7 @@ import { useUpdater } from "./stores/updater";
 import { useGateway } from "./stores/gateway";
 import { useChat } from "./stores/chat";
 import { hasTauriBackend, subscribeGatewayEvents } from "./lib/tauri-gateway";
+import { isExternalUrl, openExternalUrl } from "./lib/external-links";
 import { stringifyGatewayError } from "./lib/gateway-errors";
 import { subscribeWindowSync } from "./lib/window-sync";
 import { MainWindow } from "./windows/MainWindow";
@@ -120,6 +121,44 @@ export function App() {
 
   useEffect(() => {
     document.body.dataset.window = "main";
+  }, []);
+
+  useEffect(() => {
+    const handleDocumentClick = (event: MouseEvent) => {
+      if (
+        event.defaultPrevented ||
+        event.button !== 0 ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.shiftKey ||
+        event.altKey
+      ) {
+        return;
+      }
+
+      const target = event.target;
+      if (!(target instanceof Element)) {
+        return;
+      }
+
+      const anchor = target.closest("a[href]");
+      if (!(anchor instanceof HTMLAnchorElement)) {
+        return;
+      }
+
+      const href = anchor.getAttribute("href");
+      if (!href || !isExternalUrl(href)) {
+        return;
+      }
+
+      event.preventDefault();
+      void openExternalUrl(href);
+    };
+
+    document.addEventListener("click", handleDocumentClick);
+    return () => {
+      document.removeEventListener("click", handleDocumentClick);
+    };
   }, []);
 
   useEffect(() => {

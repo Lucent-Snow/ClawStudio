@@ -150,6 +150,36 @@
   text-transform: capitalize;
 }
 
+.repoCard {
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--color-border);
+  background: var(--surface);
+}
+
+.repoRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.repoRow:last-child {
+  margin-bottom: 0;
+}
+
+.inlineLink {
+  color: var(--primary);
+  font-size: var(--text-sm);
+  text-decoration: none;
+  word-break: break-word;
+}
+
+.inlineLink:hover {
+  text-decoration: underline;
+}
+
 .label {
   display: block;
   margin-bottom: 4px;

@@ -66,35 +66,11 @@
   background: var(--primary-faint);
 }
 
-.filterPanel {
-  padding: 14px 16px;
-  border-bottom: 1px solid var(--color-border);
-}
-
-.filterInput {
-  width: 100%;
-  padding: 9px 10px;
-  border: 1px solid var(--color-border);
-  background: var(--surface);
-  color: var(--text);
-  font-size: var(--text-sm);
-}
-
-.filterInput:focus,
 .renameInput:focus {
   outline: none;
   border-color: var(--primary);
 }
-
-.filterRow {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 10px;
-}
-
-.filterChip,
-.filterClear,
+.actionBtn,
 .actionBtn {
   border: 1px solid var(--color-border);
   background: var(--surface);
@@ -104,14 +80,6 @@
   transition: color var(--transition-normal), background var(--transition-normal), border-color var(--transition-normal);
 }
 
-.filterChipActive {
-  color: var(--primary);
-  border-color: color-mix(in srgb, var(--primary) 32%, var(--color-border) 68%);
-  background: var(--primary-faint);
-}
-
-.filterClear:hover,
-.filterChip:hover,
 .actionBtn:hover:not(:disabled) {
   color: var(--text);
   background: var(--surface-tint);

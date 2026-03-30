@@ -21,6 +21,28 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Validate release secrets
+        shell: pwsh
+        run: |
+          if (-not "${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}".Trim()) {
+            throw "Missing GitHub secret: TAURI_SIGNING_PRIVATE_KEY. Generate an updater key first and add the private key content to repository secrets."
+          }
+
+      - name: Validate updater configuration
+        shell: pwsh
+        run: |
+          $config = Get-Content 'src-tauri/tauri.conf.json' -Raw | ConvertFrom-Json
+          $updater = $config.plugins.updater
+          if (-not $updater.active) {
+            throw "Tauri updater is disabled in src-tauri/tauri.conf.json"
+          }
+          if (-not $updater.pubkey -or -not $updater.pubkey.Trim()) {
+            throw "Missing updater pubkey in src-tauri/tauri.conf.json"
+          }
+          if (-not $updater.endpoints -or $updater.endpoints.Count -eq 0) {
+            throw "Missing updater endpoints in src-tauri/tauri.conf.json"
+          }
+
       - name: Derive release metadata
         id: release_meta
         shell: pwsh
@@ -79,14 +101,17 @@ jobs:
           APP_VERSION: ${{ steps.release_meta.outputs.version }}
 
       - name: Build and publish Tauri release
-        uses: tauri-apps/tauri-action@v0
+        uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
+          projectPath: .
           tagName: ${{ steps.release_meta.outputs.tag }}
           releaseName: "ClawStudio ${{ steps.release_meta.outputs.tag }}"
           releaseBody: "Automated Windows release for ClawStudio."
+          releaseCommitish: ${{ github.sha }}
           releaseDraft: false
           prerelease: false
+          generateReleaseNotes: true

@@ -147,9 +147,6 @@ export function Composer() {
               disabled={!connected}
               rows={1}
             />
-            <div className={styles.helperText}>
-              当前支持图片附件，可拖入输入框、粘贴截图，或点击左侧加号添加。
-            </div>
           </div>
         </div>
       </div>

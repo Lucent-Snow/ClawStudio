@@ -14,7 +14,6 @@ export function SessionWorkspaceModal({ onClose }: { onClose: () => void }) {
   const sessions = useGateway((state) => state.sessions);
   const status = useGateway((state) => state.status);
   const createSession = useGateway((state) => state.createSession);
-  const renameSession = useGateway((state) => state.renameSession);
   const switchSession = useGateway((state) => state.switchSession);
   const workspaceSessionKeys = useWorkspace((state) => state.sessionKeys);
   const addSession = useWorkspace((state) => state.addSession);
@@ -54,17 +53,10 @@ export function SessionWorkspaceModal({ onClose }: { onClose: () => void }) {
       return;
     }
 
-    const nextLabel = newSessionLabel.trim() || "new-session";
     setIsCreating(true);
     setCreateError(null);
     try {
-      const key = await createSession();
-      try {
-        await renameSession(key, nextLabel);
-      } catch (error) {
-        setCreateError(error instanceof Error ? error.message : String(error));
-        return;
-      }
+      const key = await createSession(newSessionLabel);
       switchSession(key);
       void broadcastSessionChange(key);
       setNewSessionLabel("");
@@ -90,7 +82,7 @@ export function SessionWorkspaceModal({ onClose }: { onClose: () => void }) {
         <div className={styles.section}>
           <div className={styles.sectionTitle}>新建会话</div>
           <div className={styles.sectionHint}>
-            不填名称时默认使用 `new-session`，创建后会自动加入工作区和顶部标签。
+            输入内容会直接作为 key 尾部；重名时会自动追加编号。留空时默认使用 `session-N`。
           </div>
           <div className={styles.createRow}>
             <input
@@ -113,44 +105,41 @@ export function SessionWorkspaceModal({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className={styles.section}>
-          <div className={styles.sectionTitle}>过滤会话</div>
-          <div className={styles.sectionHint}>支持任意关键词过滤，并提供 subagent / cron 快捷过滤。</div>
-          <input
-            className={styles.input}
-            value={filterText}
-            onChange={(event) => setFilterText(event.target.value)}
-            placeholder="搜索 label、displayName、key、model"
-          />
-          <div className={styles.filterRow}>
-            <button
-              type="button"
-              className={`${styles.filterChip} ${filterPresets.subagent ? styles.filterChipActive : ""}`}
-              onClick={() => toggleFilterPreset("subagent")}
-            >
-              subagent
-            </button>
-            <button
-              type="button"
-              className={`${styles.filterChip} ${filterPresets.cron ? styles.filterChipActive : ""}`}
-              onClick={() => toggleFilterPreset("cron")}
-            >
-              cron
-            </button>
-            {hasActiveFilters && (
+          <div className={styles.sectionTitle}>现有会话</div>
+          <div className={styles.toolbar}>
+            <input
+              className={styles.input}
+              value={filterText}
+              onChange={(event) => setFilterText(event.target.value)}
+              placeholder="搜索会话名称、来源、key、model"
+            />
+            <div className={styles.filterRow}>
               <button
                 type="button"
-                className={styles.secondaryButton}
-                onClick={clearFilters}
+                className={`${styles.filterChip} ${filterPresets.subagent ? styles.filterChipActive : ""}`}
+                onClick={() => toggleFilterPreset("subagent")}
               >
-                清空
+                隐藏 subagent
               </button>
-            )}
+              <button
+                type="button"
+                className={`${styles.filterChip} ${filterPresets.cron ? styles.filterChipActive : ""}`}
+                onClick={() => toggleFilterPreset("cron")}
+              >
+                隐藏 cron
+              </button>
+              {hasActiveFilters && (
+                <button
+                  type="button"
+                  className={styles.secondaryButton}
+                  onClick={clearFilters}
+                >
+                  重置
+                </button>
+              )}
+            </div>
           </div>
-        </div>
-
-        <div className={styles.section}>
-          <div className={styles.sectionTitle}>现有会话</div>
-          <div className={styles.sectionHint}>过滤结果同时作用于左侧工作区列表和这里的会话列表。</div>
+          <div className={styles.sectionHint}>过滤只影响这里的展示，不会删除会话。</div>
 
           <div className={styles.listShell}>
             {workspaceSessions.length > 0 && (

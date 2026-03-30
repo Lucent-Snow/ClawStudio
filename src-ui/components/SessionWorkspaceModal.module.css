@@ -99,11 +99,16 @@
   font-size: var(--text-sm);
 }
 
+.toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
 .filterRow {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
-  margin-top: 12px;
 }
 
 .filterChip {
