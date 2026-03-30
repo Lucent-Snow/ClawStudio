@@ -95,18 +95,6 @@
   cursor: grabbing;
 }
 
-.dragOverlayTab {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  min-width: 0;
-  max-width: 260px;
-  padding: 8px 12px 10px;
-  border: 1px solid color-mix(in srgb, var(--primary) 26%, var(--color-border) 74%);
-  background: color-mix(in srgb, var(--surface) 96%, white 4%);
-  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.18);
-}
-
 .tabCopy {
   display: flex;
   flex-direction: column;

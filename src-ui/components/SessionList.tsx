@@ -1,6 +1,5 @@
 import {
   DndContext,
-  DragOverlay,
   KeyboardSensor,
   PointerSensor,
   closestCenter,
@@ -176,22 +175,6 @@ function SortableSessionItem({
   );
 }
 
-function SessionListDragOverlay({ session, title }: { session: SessionRow; title: string }) {
-  const sourceTitle = getSessionSourceTitle(session);
-
-  return (
-    <div className={styles.dragOverlayItem}>
-      <span className={`${styles.dragHandle} ${styles.dragHandleActive}`} aria-hidden="true">
-        &#8801;
-      </span>
-      <span className={styles.itemLabel}>{title}</span>
-      {sourceTitle && (
-        <span className={styles.itemMeta}>{sourceTitle}</span>
-      )}
-    </div>
-  );
-}
-
 export function SessionList({ onOpenWorkspaceManager }: { onOpenWorkspaceManager: () => void }) {
   const clearMessages = useChat((state) => state.clearMessages);
   const sessions = useGateway((state) => state.sessions);
@@ -252,11 +235,6 @@ export function SessionList({ onOpenWorkspaceManager }: { onOpenWorkspaceManager
     [filteredWorkspaceSessions],
   );
   const hasActiveFilters = filterText.trim().length > 0 || filterPresets.subagent || filterPresets.cron;
-  const activeDragSession = activeDragKey
-    ? filteredWorkspaceSessions.find((session) => session.key === activeDragKey)
-      ?? workspaceSessions.find((session) => session.key === activeDragKey)
-      ?? null
-    : null;
 
   useEffect(() => {
     if (!menu) {
@@ -541,14 +519,6 @@ export function SessionList({ onOpenWorkspaceManager }: { onOpenWorkspaceManager
               ))}
             </div>
           </SortableContext>
-          <DragOverlay>
-            {activeDragSession ? (
-              <SessionListDragOverlay
-                session={activeDragSession}
-                title={sessionTitles.get(activeDragSession.key) ?? activeDragSession.key}
-              />
-            ) : null}
-          </DragOverlay>
         </DndContext>
       )}
 

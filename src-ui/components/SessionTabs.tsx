@@ -1,6 +1,5 @@
 import {
   DndContext,
-  DragOverlay,
   KeyboardSensor,
   PointerSensor,
   closestCenter,
@@ -107,22 +106,6 @@ function SortableTab({
   );
 }
 
-function SessionTabDragOverlay({ session, title }: { session: SessionRow; title: string }) {
-  return (
-    <div className={styles.dragOverlayTab}>
-      <span className={`${styles.dragHandle} ${styles.dragHandleActive}`} aria-hidden="true">
-        &#8801;
-      </span>
-      <span className={styles.tabCopy}>
-        <span className={styles.tabLabel}>{title}</span>
-        {session.model && (
-          <span className={styles.tabMeta}>{session.model}</span>
-        )}
-      </span>
-    </div>
-  );
-}
-
 export function SessionTabs() {
   const sessions = useGateway((state) => state.sessions);
   const currentSessionKey = useGateway((state) => state.currentSessionKey);
@@ -170,9 +153,6 @@ export function SessionTabs() {
     () => buildDisambiguatedSessionTitles(openSessions),
     [openSessions],
   );
-  const activeDragSession = activeDragKey
-    ? openSessions.find((session) => session.key === activeDragKey) ?? null
-    : null;
 
   const handleDragStart = (event: DragStartEvent) => {
     setActiveDragKey(String(event.active.id));
@@ -229,14 +209,6 @@ export function SessionTabs() {
           ))}
         </div>
       </SortableContext>
-      <DragOverlay>
-        {activeDragSession ? (
-          <SessionTabDragOverlay
-            session={activeDragSession}
-            title={sessionTitles.get(activeDragSession.key) ?? activeDragSession.key}
-          />
-        ) : null}
-      </DragOverlay>
     </DndContext>
   );
 }
