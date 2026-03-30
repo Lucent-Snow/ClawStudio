@@ -42,7 +42,11 @@
 }
 
 .dragging {
-  opacity: 0.5;
+  opacity: 0.35;
+}
+
+.sorting {
+  z-index: 3;
 }
 
 .tab:hover {
@@ -68,6 +72,13 @@
   background: transparent;
   color: var(--text-secondary);
   text-align: left;
+  border: none;
+  cursor: grab;
+  touch-action: none;
+}
+
+.tab.dragging .tabButton {
+  cursor: grabbing;
 }
 
 .dragHandle {
@@ -76,6 +87,24 @@
   line-height: 1.2;
   flex-shrink: 0;
   margin-top: 1px;
+  pointer-events: none;
+  user-select: none;
+}
+
+.dragHandleActive {
+  cursor: grabbing;
+}
+
+.dragOverlayTab {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+  max-width: 260px;
+  padding: 8px 12px 10px;
+  border: 1px solid color-mix(in srgb, var(--primary) 26%, var(--color-border) 74%);
+  background: color-mix(in srgb, var(--surface) 96%, white 4%);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.18);
 }
 
 .tabCopy {

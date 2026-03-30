@@ -1,4 +1,27 @@
-import { useEffect, useMemo, useState, type DragEvent, type MouseEvent } from "react";
+import {
+  DndContext,
+  DragOverlay,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+} from "@dnd-kit/core";
+import {
+  restrictToFirstScrollableAncestor,
+  restrictToVerticalAxis,
+} from "@dnd-kit/modifiers";
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { useEffect, useMemo, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent } from "react";
 import { useChat } from "../stores/chat";
 import { useGateway } from "../stores/gateway";
 import { useWorkspace } from "../stores/workspace";
@@ -17,19 +40,156 @@ interface SessionMenuState {
   y: number;
 }
 
-function moveKeyBeforeTarget(keys: string[], draggedKey: string, targetKey: string): string[] {
-  if (draggedKey === targetKey) {
-    return keys;
+function reorderFilteredKeys(
+  allKeys: string[],
+  visibleKeys: string[],
+  activeKey: string,
+  overKey: string,
+) {
+  const visibleOrder = visibleKeys.filter((key) => allKeys.includes(key));
+  const fromIndex = visibleOrder.indexOf(activeKey);
+  const toIndex = visibleOrder.indexOf(overKey);
+
+  if (fromIndex === -1 || toIndex === -1) {
+    return allKeys;
   }
 
-  const next = keys.filter((key) => key !== draggedKey);
-  const targetIndex = next.indexOf(targetKey);
-  if (targetIndex === -1) {
-    return keys;
-  }
+  const reorderedVisibleKeys = arrayMove(visibleOrder, fromIndex, toIndex);
+  const visibleKeySet = new Set(reorderedVisibleKeys);
+  let visibleIndex = 0;
 
-  next.splice(targetIndex, 0, draggedKey);
-  return next;
+  return allKeys.map((key) => {
+    if (!visibleKeySet.has(key)) {
+      return key;
+    }
+
+    return reorderedVisibleKeys[visibleIndex++] ?? key;
+  });
+}
+
+interface SortableSessionItemProps {
+  currentKey: string | null;
+  draftLabel: string;
+  editing: boolean;
+  isDraggingOverlayActive: boolean;
+  onClick: (key: string) => void;
+  onContextMenu: (event: MouseEvent, session: SessionRow) => void;
+  onDraftLabelChange: (value: string) => void;
+  onRenameCancel: () => void;
+  onRenameCommit: () => void | Promise<void>;
+  session: SessionRow;
+  title: string;
+}
+
+function SortableSessionItem({
+  currentKey,
+  draftLabel,
+  editing,
+  isDraggingOverlayActive,
+  onClick,
+  onContextMenu,
+  onDraftLabelChange,
+  onRenameCancel,
+  onRenameCommit,
+  session,
+  title,
+}: SortableSessionItemProps) {
+  const sourceTitle = getSessionSourceTitle(session);
+  const {
+    attributes,
+    isDragging,
+    isSorting,
+    listeners,
+    setActivatorNodeRef,
+    setNodeRef,
+    transform,
+    transition,
+  } = useSortable({
+    id: session.key,
+    disabled: editing,
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+      }}
+      className={[
+        styles.itemRow,
+        session.key === currentKey ? styles.active : "",
+        isDragging ? styles.dragging : "",
+        isSorting ? styles.sorting : "",
+      ].filter(Boolean).join(" ")}
+      title={session.key}
+      onContextMenu={(event) => onContextMenu(event, session)}
+    >
+      {editing ? (
+        <div className={styles.renameRow}>
+          <input
+            className={styles.renameInput}
+            value={draftLabel}
+            onChange={(event) => onDraftLabelChange(event.target.value)}
+            onKeyDown={(event: ReactKeyboardEvent<HTMLInputElement>) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                void onRenameCommit();
+              }
+              if (event.key === "Escape") {
+                event.preventDefault();
+                onRenameCancel();
+              }
+            }}
+            placeholder="输入会话名"
+            autoFocus
+          />
+          <button className={styles.actionBtn} onClick={() => void onRenameCommit()}>
+            保存
+          </button>
+          <button className={styles.actionBtn} onClick={onRenameCancel}>
+            取消
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          ref={setActivatorNodeRef}
+          className={styles.item}
+          onClick={() => onClick(session.key)}
+          {...attributes}
+          {...listeners}
+        >
+          <span
+            className={`${styles.dragHandle} ${isDraggingOverlayActive ? styles.dragHandleActive : ""}`}
+            aria-hidden="true"
+          >
+            &#8801;
+          </span>
+          <span className={styles.itemLabel}>{title}</span>
+          {sourceTitle && (
+            <span className={styles.itemMeta}>{sourceTitle}</span>
+          )}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function SessionListDragOverlay({ session, title }: { session: SessionRow; title: string }) {
+  const sourceTitle = getSessionSourceTitle(session);
+
+  return (
+    <div className={styles.dragOverlayItem}>
+      <span className={`${styles.dragHandle} ${styles.dragHandleActive}`} aria-hidden="true">
+        &#8801;
+      </span>
+      <span className={styles.itemLabel}>{title}</span>
+      {sourceTitle && (
+        <span className={styles.itemMeta}>{sourceTitle}</span>
+      )}
+    </div>
+  );
 }
 
 export function SessionList({ onOpenWorkspaceManager }: { onOpenWorkspaceManager: () => void }) {
@@ -57,8 +217,18 @@ export function SessionList({ onOpenWorkspaceManager }: { onOpenWorkspaceManager
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [draftLabel, setDraftLabel] = useState("");
   const [menu, setMenu] = useState<SessionMenuState | null>(null);
-  const [draggingKey, setDraggingKey] = useState<string | null>(null);
+  const [activeDragKey, setActiveDragKey] = useState<string | null>(null);
   const connected = status === "connected" || status === "reconnecting";
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  );
 
   const workspaceSessions = useMemo(() => {
     const byKey = new Map(sessions.map((session) => [session.key, session]));
@@ -73,11 +243,20 @@ export function SessionList({ onOpenWorkspaceManager }: { onOpenWorkspaceManager
       ),
     [filterPresets, filterText, workspaceSessions],
   );
+  const filteredWorkspaceKeys = useMemo(
+    () => filteredWorkspaceSessions.map((session) => session.key),
+    [filteredWorkspaceSessions],
+  );
   const sessionTitles = useMemo(
     () => buildDisambiguatedSessionTitles(filteredWorkspaceSessions),
     [filteredWorkspaceSessions],
   );
   const hasActiveFilters = filterText.trim().length > 0 || filterPresets.subagent || filterPresets.cron;
+  const activeDragSession = activeDragKey
+    ? filteredWorkspaceSessions.find((session) => session.key === activeDragKey)
+      ?? workspaceSessions.find((session) => session.key === activeDragKey)
+      ?? null
+    : null;
 
   useEffect(() => {
     if (!menu) {
@@ -211,24 +390,32 @@ export function SessionList({ onOpenWorkspaceManager }: { onOpenWorkspaceManager
     });
   };
 
-  const handleDragStart = (event: DragEvent<HTMLDivElement>, key: string) => {
-    if (editingKey) {
-      event.preventDefault();
-      return;
-    }
-
-    setDraggingKey(key);
-    event.dataTransfer.effectAllowed = "move";
-    event.dataTransfer.setData("text/plain", key);
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveDragKey(String(event.active.id));
+    setMenu(null);
   };
 
-  const handleDrop = (targetKey: string) => {
-    if (!draggingKey || draggingKey === targetKey) {
+  const handleDragEnd = (event: DragEndEvent) => {
+    const activeKey = String(event.active.id);
+    const overKey = event.over ? String(event.over.id) : null;
+    setActiveDragKey(null);
+
+    if (!overKey || activeKey === overKey) {
       return;
     }
 
-    setSessionOrder(moveKeyBeforeTarget(workspaceSessionKeys, draggingKey, targetKey));
-    setDraggingKey(null);
+    if (!filteredWorkspaceKeys.includes(activeKey) || !filteredWorkspaceKeys.includes(overKey)) {
+      return;
+    }
+
+    setSessionOrder(
+      reorderFilteredKeys(
+        workspaceSessionKeys,
+        filteredWorkspaceKeys,
+        activeKey,
+        overKey,
+      ),
+    );
   };
 
   const menuSession = menu
@@ -326,65 +513,43 @@ export function SessionList({ onOpenWorkspaceManager }: { onOpenWorkspaceManager
       ) : filteredWorkspaceSessions.length === 0 ? (
         <div className={styles.empty}>没有匹配当前过滤条件的会话。</div>
       ) : (
-        <div className={styles.list}>
-          {filteredWorkspaceSessions.map((session) => (
-            <div
-              key={session.key}
-              className={`${styles.itemRow} ${session.key === currentKey ? styles.active : ""} ${draggingKey === session.key ? styles.dragging : ""}`}
-              title={session.key}
-              draggable={editingKey !== session.key}
-              onDragStart={(event) => handleDragStart(event, session.key)}
-              onDragOver={(event) => {
-                event.preventDefault();
-                event.dataTransfer.dropEffect = "move";
-              }}
-              onDragEnd={() => setDraggingKey(null)}
-              onDrop={(event) => {
-                event.preventDefault();
-                handleDrop(session.key);
-              }}
-              onContextMenu={(event) => openMenu(event, session)}
-            >
-              {editingKey === session.key ? (
-                <div className={styles.renameRow}>
-                  <input
-                    className={styles.renameInput}
-                    value={draftLabel}
-                    onChange={(event) => setDraftLabel(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") {
-                        event.preventDefault();
-                        void commitRename();
-                      }
-                      if (event.key === "Escape") {
-                        event.preventDefault();
-                        cancelRename();
-                      }
-                    }}
-                    placeholder="输入会话名"
-                    autoFocus
-                  />
-                  <button className={styles.actionBtn} onClick={() => void commitRename()}>
-                    保存
-                  </button>
-                  <button className={styles.actionBtn} onClick={cancelRename}>
-                    取消
-                  </button>
-                </div>
-              ) : (
-                <button className={styles.item} onClick={() => handleClick(session.key)}>
-                  <span className={styles.dragHandle} aria-hidden="true">
-                    &#8801;
-                  </span>
-                  <span className={styles.itemLabel}>{sessionTitles.get(session.key) ?? session.key}</span>
-                  {getSessionSourceTitle(session) && (
-                    <span className={styles.itemMeta}>{getSessionSourceTitle(session)}</span>
-                  )}
-                </button>
-              )}
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          modifiers={[restrictToVerticalAxis, restrictToFirstScrollableAncestor]}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+          onDragCancel={() => setActiveDragKey(null)}
+        >
+          <SortableContext items={filteredWorkspaceKeys} strategy={verticalListSortingStrategy}>
+            <div className={styles.list}>
+              {filteredWorkspaceSessions.map((session) => (
+                <SortableSessionItem
+                  key={session.key}
+                  currentKey={currentKey}
+                  draftLabel={draftLabel}
+                  editing={editingKey === session.key}
+                  isDraggingOverlayActive={activeDragKey === session.key}
+                  onClick={handleClick}
+                  onContextMenu={openMenu}
+                  onDraftLabelChange={setDraftLabel}
+                  onRenameCancel={cancelRename}
+                  onRenameCommit={commitRename}
+                  session={session}
+                  title={sessionTitles.get(session.key) ?? session.key}
+                />
+              ))}
             </div>
-          ))}
-        </div>
+          </SortableContext>
+          <DragOverlay>
+            {activeDragSession ? (
+              <SessionListDragOverlay
+                session={activeDragSession}
+                title={sessionTitles.get(activeDragSession.key) ?? activeDragSession.key}
+              />
+            ) : null}
+          </DragOverlay>
+        </DndContext>
       )}
 
       {menu && menuSession ? (

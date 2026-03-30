@@ -1,23 +1,126 @@
-import { useMemo, useState, type DragEvent } from "react";
+import {
+  DndContext,
+  DragOverlay,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+} from "@dnd-kit/core";
+import { restrictToHorizontalAxis } from "@dnd-kit/modifiers";
+import {
+  SortableContext,
+  arrayMove,
+  horizontalListSortingStrategy,
+  sortableKeyboardCoordinates,
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { useMemo, useState } from "react";
 import type { SessionRow } from "../lib/types";
 import { broadcastSessionChange } from "../lib/window-sync";
 import { buildDisambiguatedSessionTitles } from "../lib/session-display";
 import { useGateway } from "../stores/gateway";
 import styles from "./SessionTabs.module.css";
 
-function moveKeyBeforeTarget(keys: string[], draggedKey: string, targetKey: string): string[] {
-  if (draggedKey === targetKey) {
-    return keys;
-  }
+interface SortableTabProps {
+  active: boolean;
+  currentSessionKey: string | null;
+  draggingKey: string | null;
+  onClose: (key: string) => void;
+  onSwitch: (key: string) => void;
+  session: SessionRow;
+  title: string;
+}
 
-  const next = keys.filter((key) => key !== draggedKey);
-  const targetIndex = next.indexOf(targetKey);
-  if (targetIndex === -1) {
-    return keys;
-  }
+function SortableTab({
+  active,
+  currentSessionKey,
+  draggingKey,
+  onClose,
+  onSwitch,
+  session,
+  title,
+}: SortableTabProps) {
+  const {
+    attributes,
+    isDragging,
+    isSorting,
+    listeners,
+    setActivatorNodeRef,
+    setNodeRef,
+    transform,
+    transition,
+  } = useSortable({
+    id: session.key,
+  });
 
-  next.splice(targetIndex, 0, draggedKey);
-  return next;
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+      }}
+      className={[
+        styles.tab,
+        active ? styles.active : "",
+        isDragging ? styles.dragging : "",
+        isSorting ? styles.sorting : "",
+      ].filter(Boolean).join(" ")}
+    >
+      <button
+        type="button"
+        ref={setActivatorNodeRef}
+        className={styles.tabButton}
+        onClick={() => onSwitch(session.key)}
+        title={session.key}
+        aria-current={session.key === currentSessionKey ? "page" : undefined}
+        {...attributes}
+        {...listeners}
+      >
+        <span
+          className={`${styles.dragHandle} ${draggingKey === session.key ? styles.dragHandleActive : ""}`}
+          aria-hidden="true"
+        >
+          &#8801;
+        </span>
+        <span className={styles.tabCopy}>
+          <span className={styles.tabLabel}>{title}</span>
+          {session.model && (
+            <span className={styles.tabMeta}>{session.model}</span>
+          )}
+        </span>
+      </button>
+      <button
+        type="button"
+        className={styles.closeButton}
+        onClick={() => onClose(session.key)}
+        aria-label={`关闭 ${title}`}
+        title="关闭标签页"
+      >
+        &#10005;
+      </button>
+    </div>
+  );
+}
+
+function SessionTabDragOverlay({ session, title }: { session: SessionRow; title: string }) {
+  return (
+    <div className={styles.dragOverlayTab}>
+      <span className={`${styles.dragHandle} ${styles.dragHandleActive}`} aria-hidden="true">
+        &#8801;
+      </span>
+      <span className={styles.tabCopy}>
+        <span className={styles.tabLabel}>{title}</span>
+        {session.model && (
+          <span className={styles.tabMeta}>{session.model}</span>
+        )}
+      </span>
+    </div>
+  );
 }
 
 export function SessionTabs() {
@@ -27,7 +130,17 @@ export function SessionTabs() {
   const switchSession = useGateway((state) => state.switchSession);
   const closeSessionTab = useGateway((state) => state.closeSessionTab);
   const reorderOpenSessions = useGateway((state) => state.reorderOpenSessions);
-  const [draggingKey, setDraggingKey] = useState<string | null>(null);
+  const [activeDragKey, setActiveDragKey] = useState<string | null>(null);
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  );
 
   const handleSwitch = (key: string) => {
     switchSession(key);
@@ -49,10 +162,39 @@ export function SessionTabs() {
         .filter((session): session is SessionRow => Boolean(session)),
     [openSessionKeys, sessions],
   );
+  const openSessionIds = useMemo(
+    () => openSessions.map((session) => session.key),
+    [openSessions],
+  );
   const sessionTitles = useMemo(
     () => buildDisambiguatedSessionTitles(openSessions),
     [openSessions],
   );
+  const activeDragSession = activeDragKey
+    ? openSessions.find((session) => session.key === activeDragKey) ?? null
+    : null;
+
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveDragKey(String(event.active.id));
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const activeKey = String(event.active.id);
+    const overKey = event.over ? String(event.over.id) : null;
+    setActiveDragKey(null);
+
+    if (!overKey || activeKey === overKey) {
+      return;
+    }
+
+    const fromIndex = openSessionKeys.indexOf(activeKey);
+    const toIndex = openSessionKeys.indexOf(overKey);
+    if (fromIndex === -1 || toIndex === -1) {
+      return;
+    }
+
+    reorderOpenSessions(arrayMove(openSessionKeys, fromIndex, toIndex));
+  };
 
   if (openSessions.length === 0) {
     return (
@@ -63,61 +205,38 @@ export function SessionTabs() {
   }
 
   return (
-    <div className={styles.tabBar}>
-      {openSessions.map((session) => {
-        const active = session.key === currentSessionKey;
-        return (
-          <div
-            key={session.key}
-            className={`${styles.tab} ${active ? styles.active : ""} ${draggingKey === session.key ? styles.dragging : ""}`}
-            draggable
-            onDragStart={(event: DragEvent<HTMLDivElement>) => {
-              setDraggingKey(session.key);
-              event.dataTransfer.effectAllowed = "move";
-              event.dataTransfer.setData("text/plain", session.key);
-            }}
-            onDragOver={(event) => {
-              event.preventDefault();
-              event.dataTransfer.dropEffect = "move";
-            }}
-            onDragEnd={() => setDraggingKey(null)}
-            onDrop={(event) => {
-              event.preventDefault();
-              if (draggingKey) {
-                reorderOpenSessions(moveKeyBeforeTarget(openSessionKeys, draggingKey, session.key));
-              }
-              setDraggingKey(null);
-            }}
-          >
-            <button
-              type="button"
-              className={styles.tabButton}
-              onClick={() => handleSwitch(session.key)}
-              title={session.key}
-              aria-current={active ? "page" : undefined}
-            >
-              <span className={styles.dragHandle} aria-hidden="true">
-                &#8801;
-              </span>
-              <span className={styles.tabCopy}>
-                <span className={styles.tabLabel}>{sessionTitles.get(session.key) ?? session.key}</span>
-                {session.model && (
-                  <span className={styles.tabMeta}>{session.model}</span>
-                )}
-              </span>
-            </button>
-            <button
-              type="button"
-              className={styles.closeButton}
-              onClick={() => handleClose(session.key)}
-              aria-label={`关闭 ${sessionTitles.get(session.key) ?? session.key}`}
-              title="关闭标签页"
-            >
-              &#10005;
-            </button>
-          </div>
-        );
-      })}
-    </div>
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      modifiers={[restrictToHorizontalAxis]}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+      onDragCancel={() => setActiveDragKey(null)}
+    >
+      <SortableContext items={openSessionIds} strategy={horizontalListSortingStrategy}>
+        <div className={styles.tabBar}>
+          {openSessions.map((session) => (
+            <SortableTab
+              key={session.key}
+              active={session.key === currentSessionKey}
+              currentSessionKey={currentSessionKey}
+              draggingKey={activeDragKey}
+              onClose={handleClose}
+              onSwitch={handleSwitch}
+              session={session}
+              title={sessionTitles.get(session.key) ?? session.key}
+            />
+          ))}
+        </div>
+      </SortableContext>
+      <DragOverlay>
+        {activeDragSession ? (
+          <SessionTabDragOverlay
+            session={activeDragSession}
+            title={sessionTitles.get(activeDragSession.key) ?? activeDragSession.key}
+          />
+        ) : null}
+      </DragOverlay>
+    </DndContext>
   );
 }
