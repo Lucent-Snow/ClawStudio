@@ -10,7 +10,7 @@ import { MainWindow } from "./windows/MainWindow";
 
 export function App() {
   const settings = useSettings();
-  const { setStatus, switchSession, refreshSessions, status, connect } = useGateway();
+  const { setStatus, refreshSessions, status, connect } = useGateway();
   const {
     appendExternalUserMessage,
     activateSession,
@@ -23,13 +23,6 @@ export function App() {
   const autoCheckUpdates = useSettings((s) => s.updates.autoCheck);
   const initializeUpdater = useUpdater((s) => s.initialize);
   const checkForUpdates = useUpdater((s) => s.checkForUpdates);
-
-  // Set initial session from settings
-  useEffect(() => {
-    if (!currentSessionKey && settings.gateway.sessionKey) {
-      switchSession(settings.gateway.sessionKey);
-    }
-  }, [currentSessionKey, settings.gateway.sessionKey, switchSession]);
 
   // Subscribe to Tauri gateway events
   useEffect(() => {

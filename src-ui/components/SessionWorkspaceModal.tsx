@@ -4,26 +4,11 @@ import {
   buildDisambiguatedSessionTitles,
   getSessionSourceTitle,
 } from "../lib/session-display";
+import { matchesSessionFilter } from "../lib/session-filter";
 import type { SessionRow } from "../lib/types";
 import { useGateway } from "../stores/gateway";
 import { useWorkspace } from "../stores/workspace";
 import styles from "./SessionWorkspaceModal.module.css";
-
-function matchesSearch(session: SessionRow, query: string): boolean {
-  if (!query) {
-    return true;
-  }
-
-  const normalized = query.toLowerCase();
-  return [
-    session.label,
-    session.displayName,
-    session.key,
-    session.model,
-  ]
-    .filter((value): value is string => Boolean(value))
-    .some((value) => value.toLowerCase().includes(normalized));
-}
 
 export function SessionWorkspaceModal({ onClose }: { onClose: () => void }) {
   const sessions = useGateway((state) => state.sessions);
@@ -33,16 +18,24 @@ export function SessionWorkspaceModal({ onClose }: { onClose: () => void }) {
   const switchSession = useGateway((state) => state.switchSession);
   const workspaceSessionKeys = useWorkspace((state) => state.sessionKeys);
   const addSession = useWorkspace((state) => state.addSession);
-  const [search, setSearch] = useState("");
+  const filterText = useWorkspace((state) => state.filterText);
+  const filterPresets = useWorkspace((state) => state.filterPresets);
+  const setFilterText = useWorkspace((state) => state.setFilterText);
+  const toggleFilterPreset = useWorkspace((state) => state.toggleFilterPreset);
+  const clearFilters = useWorkspace((state) => state.clearFilters);
   const [newSessionLabel, setNewSessionLabel] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const connected = status === "connected" || status === "reconnecting";
+  const hasActiveFilters = filterText.trim().length > 0 || filterPresets.subagent || filterPresets.cron;
 
   const workspaceKeySet = useMemo(() => new Set(workspaceSessionKeys), [workspaceSessionKeys]);
   const filteredSessions = useMemo(
-    () => sessions.filter((session) => matchesSearch(session, search.trim())),
-    [search, sessions],
+    () =>
+      sessions.filter((session) =>
+        matchesSessionFilter(session, filterText.trim(), filterPresets),
+      ),
+    [filterPresets, filterText, sessions],
   );
   const titles = useMemo(
     () => buildDisambiguatedSessionTitles(filteredSessions),
@@ -66,7 +59,6 @@ export function SessionWorkspaceModal({ onClose }: { onClose: () => void }) {
     setCreateError(null);
     try {
       const key = await createSession();
-      addSession(key);
       try {
         await renameSession(key, nextLabel);
       } catch (error) {
@@ -87,8 +79,8 @@ export function SessionWorkspaceModal({ onClose }: { onClose: () => void }) {
       <div className={styles.panel} onClick={(event) => event.stopPropagation()}>
         <div className={styles.header}>
           <div>
-            <div className={styles.title}>添加会话</div>
-            <div className={styles.subtitle}>左侧只显示工作区中的会话。</div>
+            <div className={styles.title}>管理工作区</div>
+            <div className={styles.subtitle}>工作区内容、过滤条件和标签顺序都会自动恢复。</div>
           </div>
           <button type="button" className={styles.closeButton} onClick={onClose}>
             关闭
@@ -98,7 +90,7 @@ export function SessionWorkspaceModal({ onClose }: { onClose: () => void }) {
         <div className={styles.section}>
           <div className={styles.sectionTitle}>新建会话</div>
           <div className={styles.sectionHint}>
-            不填名称时默认使用 `new-session`，之后仍可重命名。
+            不填名称时默认使用 `new-session`，创建后会自动加入工作区和顶部标签。
           </div>
           <div className={styles.createRow}>
             <input
@@ -121,14 +113,44 @@ export function SessionWorkspaceModal({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className={styles.section}>
-          <div className={styles.sectionTitle}>现有会话</div>
-          <div className={styles.sectionHint}>搜索后可把现有 session 加入左侧工作区。</div>
+          <div className={styles.sectionTitle}>过滤会话</div>
+          <div className={styles.sectionHint}>支持任意关键词过滤，并提供 subagent / cron 快捷过滤。</div>
           <input
             className={styles.input}
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="搜索 label、displayName、key"
+            value={filterText}
+            onChange={(event) => setFilterText(event.target.value)}
+            placeholder="搜索 label、displayName、key、model"
           />
+          <div className={styles.filterRow}>
+            <button
+              type="button"
+              className={`${styles.filterChip} ${filterPresets.subagent ? styles.filterChipActive : ""}`}
+              onClick={() => toggleFilterPreset("subagent")}
+            >
+              subagent
+            </button>
+            <button
+              type="button"
+              className={`${styles.filterChip} ${filterPresets.cron ? styles.filterChipActive : ""}`}
+              onClick={() => toggleFilterPreset("cron")}
+            >
+              cron
+            </button>
+            {hasActiveFilters && (
+              <button
+                type="button"
+                className={styles.secondaryButton}
+                onClick={clearFilters}
+              >
+                清空
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className={styles.section}>
+          <div className={styles.sectionTitle}>现有会话</div>
+          <div className={styles.sectionHint}>过滤结果同时作用于左侧工作区列表和这里的会话列表。</div>
 
           <div className={styles.listShell}>
             {workspaceSessions.length > 0 && (
@@ -158,7 +180,7 @@ export function SessionWorkspaceModal({ onClose }: { onClose: () => void }) {
             <div className={styles.group}>
               <div className={styles.groupTitle}>可加入的会话</div>
               {availableSessions.length === 0 ? (
-                <div className={styles.empty}>没有可加入的会话。</div>
+                <div className={styles.empty}>没有匹配当前过滤条件且可加入的会话。</div>
               ) : (
                 availableSessions.map((session) => (
                   <div key={session.key} className={styles.sessionRow}>

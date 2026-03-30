@@ -13,6 +13,7 @@ import { shouldReconnectGateway, stringifyGatewayError } from "../lib/gateway-er
 import { broadcastSettingsChange } from "../lib/window-sync";
 import { useChat } from "./chat";
 import { DEFAULT_SETTINGS, useSettings } from "./settings";
+import { useWorkspace } from "./workspace";
 
 export type ConnectionStatus =
   | "disconnected"
@@ -28,6 +29,7 @@ interface GatewayState {
   currentSessionKey: string | null;
   openSessionKeys: string[];
   composerFocusToken: number;
+  syncWorkspaceState: () => void;
   connect: (url: string, token: string) => Promise<void>;
   disconnect: () => Promise<void>;
   createSession: () => Promise<string>;
@@ -37,6 +39,7 @@ interface GatewayState {
   updateSessionModel: (key: string, model: string) => Promise<void>;
   switchSession: (key: string) => void;
   closeSessionTab: (key: string) => void;
+  reorderOpenSessions: (keys: string[]) => void;
   refreshSessions: () => Promise<void>;
   requestComposerFocus: () => void;
   setStatus: (status: ConnectionStatus, error?: string | null) => void;
@@ -146,11 +149,19 @@ export const useGateway = create<GatewayState>()((set, get) => ({
   status: "disconnected",
   error: null,
   sessions: [],
-  currentSessionKey: null,
-  openSessionKeys: [],
+  currentSessionKey: useWorkspace.getState().activeSessionKey,
+  openSessionKeys: useWorkspace.getState().openSessionKeys,
   composerFocusToken: 0,
 
   setStatus: (status, error = null) => set({ status, error }),
+
+  syncWorkspaceState: () => {
+    const workspace = useWorkspace.getState();
+    set({
+      currentSessionKey: workspace.activeSessionKey,
+      openSessionKeys: workspace.openSessionKeys,
+    });
+  },
 
   requestComposerFocus: () =>
     set((state) => ({ composerFocusToken: state.composerFocusToken + 1 })),
@@ -174,7 +185,7 @@ export const useGateway = create<GatewayState>()((set, get) => ({
     } catch {
       // ignore
     }
-    set({ status: "disconnected", error: null, sessions: [], openSessionKeys: [] });
+    set({ status: "disconnected", error: null, sessions: [] });
   },
 
   createSession: async () => {
@@ -184,6 +195,8 @@ export const useGateway = create<GatewayState>()((set, get) => ({
       useSettings.getState().gateway.sessionKey,
     );
     await retryGatewayRequest(() => gatewaySessionsReset(key, "new"));
+    useWorkspace.getState().addSession(key);
+    useWorkspace.getState().addOpenSession(key);
     set((state) => ({
       currentSessionKey: key,
       openSessionKeys: state.openSessionKeys.includes(key)
@@ -219,7 +232,12 @@ export const useGateway = create<GatewayState>()((set, get) => ({
     const savedSessionKey = useSettings.getState().gateway.sessionKey;
     await retryGatewayRequest(() => gatewaySessionsDelete(key));
     const sessions = prev.sessions.filter((session) => session.key !== key);
-    const nextKey = prev.currentSessionKey === key ? sessions[0]?.key ?? null : prev.currentSessionKey;
+    useWorkspace.getState().removeSession(key);
+    const workspaceState = useWorkspace.getState();
+    const nextKey =
+      prev.currentSessionKey === key
+        ? workspaceState.activeSessionKey ?? null
+        : prev.currentSessionKey;
     const nextDefaultKey =
       key === savedSessionKey
         ? nextKey ?? sessions[0]?.key ?? DEFAULT_SETTINGS.gateway.sessionKey
@@ -232,7 +250,7 @@ export const useGateway = create<GatewayState>()((set, get) => ({
     set({
       sessions,
       currentSessionKey: nextKey,
-      openSessionKeys: prev.openSessionKeys.filter((sessionKey) => sessionKey !== key),
+      openSessionKeys: workspaceState.openSessionKeys,
     });
     if (prev.currentSessionKey === key) {
       useChat.getState().clearMessages(key);
@@ -285,6 +303,7 @@ export const useGateway = create<GatewayState>()((set, get) => ({
   },
 
   switchSession: (key) => {
+    useWorkspace.getState().addOpenSession(key);
     set((state) => ({
       currentSessionKey: key,
       openSessionKeys: state.openSessionKeys.includes(key)
@@ -305,12 +324,20 @@ export const useGateway = create<GatewayState>()((set, get) => ({
         state.currentSessionKey !== key
           ? state.currentSessionKey
           : openSessionKeys[index] ?? openSessionKeys[index - 1] ?? null;
+      useWorkspace.getState().removeOpenSession(key, nextCurrentSessionKey);
 
       return {
         openSessionKeys,
         currentSessionKey: nextCurrentSessionKey,
       };
     });
+  },
+
+  reorderOpenSessions: (keys) => {
+    const available = new Set(get().sessions.map((session) => session.key));
+    const nextKeys = keys.filter((key) => available.has(key));
+    useWorkspace.getState().setOpenSessionOrder(nextKeys);
+    set({ openSessionKeys: useWorkspace.getState().openSessionKeys });
   },
 
   refreshSessions: async () => {
@@ -335,35 +362,19 @@ function applySessionsResult(
     fallbackCurrent && !sorted.some((session) => session.key === fallbackCurrent.key)
       ? [fallbackCurrent, ...sorted]
       : sorted;
-  const previousOpenSessionKeys = get().openSessionKeys;
-  const openSessionKeys = previousOpenSessionKeys.filter((key) =>
-    merged.some((session) => session.key === key),
-  );
-  const resolvedCurrent =
-    currentSessionKey && merged.some((session) => session.key === currentSessionKey)
-      ? currentSessionKey
-      : null;
+  const availableKeys = merged.map((session) => session.key);
+  const workspace = useWorkspace.getState();
+  const fallbackKey =
+    workspace.activeSessionKey && availableKeys.includes(workspace.activeSessionKey)
+      ? workspace.activeSessionKey
+      : merged.find((session) => session.key === defaultKey)?.key ?? merged[0]?.key ?? null;
 
-  const firstSession = merged[0];
-  if (!resolvedCurrent && firstSession) {
-    const match = merged.find((session) => session.key === defaultKey);
-    set({
-      sessions: merged,
-      currentSessionKey: match?.key ?? firstSession.key,
-      openSessionKeys:
-        openSessionKeys.length > 0
-          ? openSessionKeys
-          : [match?.key ?? firstSession.key],
-    });
-    return;
-  }
+  workspace.reconcileSessions(availableKeys, fallbackKey);
+  const restored = useWorkspace.getState();
 
   set({
     sessions: merged,
-    currentSessionKey: resolvedCurrent,
-    openSessionKeys:
-      openSessionKeys.length > 0 || !resolvedCurrent
-        ? openSessionKeys
-        : [resolvedCurrent],
+    currentSessionKey: restored.activeSessionKey,
+    openSessionKeys: restored.openSessionKeys,
   });
 }

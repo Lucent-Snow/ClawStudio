@@ -1,9 +1,24 @@
-import { useMemo } from "react";
+import { useMemo, useState, type DragEvent } from "react";
 import type { SessionRow } from "../lib/types";
 import { broadcastSessionChange } from "../lib/window-sync";
 import { buildDisambiguatedSessionTitles } from "../lib/session-display";
 import { useGateway } from "../stores/gateway";
 import styles from "./SessionTabs.module.css";
+
+function moveKeyBeforeTarget(keys: string[], draggedKey: string, targetKey: string): string[] {
+  if (draggedKey === targetKey) {
+    return keys;
+  }
+
+  const next = keys.filter((key) => key !== draggedKey);
+  const targetIndex = next.indexOf(targetKey);
+  if (targetIndex === -1) {
+    return keys;
+  }
+
+  next.splice(targetIndex, 0, draggedKey);
+  return next;
+}
 
 export function SessionTabs() {
   const sessions = useGateway((state) => state.sessions);
@@ -11,6 +26,8 @@ export function SessionTabs() {
   const openSessionKeys = useGateway((state) => state.openSessionKeys);
   const switchSession = useGateway((state) => state.switchSession);
   const closeSessionTab = useGateway((state) => state.closeSessionTab);
+  const reorderOpenSessions = useGateway((state) => state.reorderOpenSessions);
+  const [draggingKey, setDraggingKey] = useState<string | null>(null);
 
   const handleSwitch = (key: string) => {
     switchSession(key);
@@ -52,7 +69,25 @@ export function SessionTabs() {
         return (
           <div
             key={session.key}
-            className={`${styles.tab} ${active ? styles.active : ""}`}
+            className={`${styles.tab} ${active ? styles.active : ""} ${draggingKey === session.key ? styles.dragging : ""}`}
+            draggable
+            onDragStart={(event: DragEvent<HTMLDivElement>) => {
+              setDraggingKey(session.key);
+              event.dataTransfer.effectAllowed = "move";
+              event.dataTransfer.setData("text/plain", session.key);
+            }}
+            onDragOver={(event) => {
+              event.preventDefault();
+              event.dataTransfer.dropEffect = "move";
+            }}
+            onDragEnd={() => setDraggingKey(null)}
+            onDrop={(event) => {
+              event.preventDefault();
+              if (draggingKey) {
+                reorderOpenSessions(moveKeyBeforeTarget(openSessionKeys, draggingKey, session.key));
+              }
+              setDraggingKey(null);
+            }}
           >
             <button
               type="button"
@@ -61,10 +96,15 @@ export function SessionTabs() {
               title={session.key}
               aria-current={active ? "page" : undefined}
             >
-              <span className={styles.tabLabel}>{sessionTitles.get(session.key) ?? session.key}</span>
-              {session.model && (
-                <span className={styles.tabMeta}>{session.model}</span>
-              )}
+              <span className={styles.dragHandle} aria-hidden="true">
+                &#8801;
+              </span>
+              <span className={styles.tabCopy}>
+                <span className={styles.tabLabel}>{sessionTitles.get(session.key) ?? session.key}</span>
+                {session.model && (
+                  <span className={styles.tabMeta}>{session.model}</span>
+                )}
+              </span>
             </button>
             <button
               type="button"

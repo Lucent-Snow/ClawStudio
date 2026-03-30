@@ -41,6 +41,10 @@
     transform var(--transition-normal);
 }
 
+.dragging {
+  opacity: 0.5;
+}
+
 .tab:hover {
   opacity: 0.9;
 }
@@ -57,14 +61,29 @@
 
 .tabButton {
   display: flex;
-  flex-direction: column;
   align-items: flex-start;
-  gap: 2px;
+  gap: 8px;
   min-width: 0;
   padding: 8px 12px 10px;
   background: transparent;
   color: var(--text-secondary);
   text-align: left;
+}
+
+.dragHandle {
+  color: var(--text-tertiary);
+  font-size: 12px;
+  line-height: 1.2;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.tabCopy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
 }
 
 .tab.active .tabButton {

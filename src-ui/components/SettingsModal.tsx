@@ -4,8 +4,7 @@ import {
   gatewayConfigPatch,
   gatewayConfigSchema,
 } from "../lib/tauri-gateway";
-import { getSessionDisplayTitle } from "../lib/session-display";
-import { broadcastSessionChange, broadcastSettingsChange } from "../lib/window-sync";
+import { broadcastSettingsChange } from "../lib/window-sync";
 import { useGateway } from "../stores/gateway";
 import { useSettings } from "../stores/settings";
 import { type UpdateStatus, useUpdater } from "../stores/updater";
@@ -90,9 +89,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
     error,
     connect,
     disconnect,
-    sessions,
     currentSessionKey,
-    switchSession,
   } = useGateway();
   const currentVersion = useUpdater((state) => state.currentVersion);
   const latestVersion = useUpdater((state) => state.latestVersion);
@@ -105,7 +102,6 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
   const [tab, setTab] = useState<Tab>("gateway");
   const [url, setUrl] = useState(settings.gateway.url);
   const [token, setToken] = useState(settings.gateway.token);
-  const [sessionKey, setSessionKey] = useState(currentSessionKey ?? settings.gateway.sessionKey);
   const [autoCheckUpdates, setAutoCheckUpdates] = useState(settings.updates.autoCheck);
   const [adminConfigText, setAdminConfigText] = useState("");
   const [adminSchemaText, setAdminSchemaText] = useState("");
@@ -130,7 +126,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
       gateway: {
         url: url.trim(),
         token,
-        sessionKey,
+        sessionKey: settings.gateway.sessionKey,
         autoConnect: settings.gateway.autoConnect,
       },
       updates: {
@@ -243,10 +239,6 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
   };
 
   useEffect(() => {
-    setSessionKey(currentSessionKey ?? settings.gateway.sessionKey);
-  }, [currentSessionKey, settings.gateway.sessionKey]);
-
-  useEffect(() => {
     if (tab !== "admin" || !connected) {
       return;
     }
@@ -268,12 +260,6 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
   const handleDisconnect = () => {
     persistSettings();
     void disconnect();
-  };
-
-  const handleSessionChange = (sessionKey: string) => {
-    setSessionKey(sessionKey);
-    switchSession(sessionKey);
-    void broadcastSessionChange(sessionKey);
   };
 
   const handleClose = () => {
@@ -314,7 +300,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
               <div className={styles.sectionHeader}>
                 <div>
                   <div className={styles.sectionTitle}>网关连接</div>
-                  <div className={styles.sectionHint}>服务器地址、默认会话和启动更新策略。</div>
+                  <div className={styles.sectionHint}>服务器地址和启动更新策略。</div>
                 </div>
                 <div className={styles.statusBadge}>{status}</div>
               </div>
@@ -336,27 +322,6 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
                   value={token}
                   onChange={(event) => setToken(event.target.value)}
                 />
-              </div>
-
-              <div className={styles.field}>
-                <label className={styles.label}>默认会话</label>
-                <select
-                  className={styles.input}
-                  value={sessionKey}
-                  onChange={(event) => handleSessionChange(event.target.value)}
-                  disabled={sessions.length === 0}
-                >
-                  {sessions.length === 0 && (
-                    <option value={settings.gateway.sessionKey}>
-                      {settings.gateway.sessionKey}
-                    </option>
-                  )}
-                  {sessions.map((session) => (
-                    <option key={session.key} value={session.key}>
-                      {getSessionDisplayTitle(session)}
-                    </option>
-                  ))}
-                </select>
               </div>
 
               <label className={styles.toggleRow}>

@@ -99,6 +99,30 @@
   font-size: var(--text-sm);
 }
 
+.filterRow {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.filterChip {
+  border: 1px solid var(--color-border);
+  padding: 8px 12px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-label);
+  font-size: var(--text-sm);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.filterChipActive {
+  color: var(--primary);
+  border-color: color-mix(in srgb, var(--primary) 34%, var(--color-border) 66%);
+  background: var(--primary-faint);
+}
+
 .createRow {
   display: flex;
   gap: 10px;

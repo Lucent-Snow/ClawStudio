@@ -1,12 +1,12 @@
-import { useEffect, useMemo, useState, type MouseEvent } from "react";
+import { useEffect, useMemo, useState, type DragEvent, type MouseEvent } from "react";
 import { useChat } from "../stores/chat";
 import { useGateway } from "../stores/gateway";
-import { useSettings } from "../stores/settings";
 import { useWorkspace } from "../stores/workspace";
 import {
   buildDisambiguatedSessionTitles,
   getSessionSourceTitle,
 } from "../lib/session-display";
+import { matchesSessionFilter } from "../lib/session-filter";
 import { broadcastSessionChange } from "../lib/window-sync";
 import type { SessionRow } from "../lib/types";
 import styles from "./SessionList.module.css";
@@ -17,25 +17,47 @@ interface SessionMenuState {
   y: number;
 }
 
+function moveKeyBeforeTarget(keys: string[], draggedKey: string, targetKey: string): string[] {
+  if (draggedKey === targetKey) {
+    return keys;
+  }
+
+  const next = keys.filter((key) => key !== draggedKey);
+  const targetIndex = next.indexOf(targetKey);
+  if (targetIndex === -1) {
+    return keys;
+  }
+
+  next.splice(targetIndex, 0, draggedKey);
+  return next;
+}
+
 export function SessionList({ onOpenWorkspaceManager }: { onOpenWorkspaceManager: () => void }) {
   const clearMessages = useChat((state) => state.clearMessages);
   const sessions = useGateway((state) => state.sessions);
   const currentKey = useGateway((state) => state.currentSessionKey);
+  const openSessionKeys = useGateway((state) => state.openSessionKeys);
   const status = useGateway((state) => state.status);
   const switchSession = useGateway((state) => state.switchSession);
   const resetSession = useGateway((state) => state.resetSession);
   const deleteSession = useGateway((state) => state.deleteSession);
   const renameSession = useGateway((state) => state.renameSession);
-  const defaultSessionKey = useSettings((state) => state.gateway.sessionKey);
+  const syncWorkspaceState = useGateway((state) => state.syncWorkspaceState);
   const workspaceSessionKeys = useWorkspace((state) => state.sessionKeys);
-  const workspaceInitialized = useWorkspace((state) => state.initialized);
-  const initializeWorkspace = useWorkspace((state) => state.initialize);
-  const addToWorkspace = useWorkspace((state) => state.addSession);
+  const sidebarCollapsed = useWorkspace((state) => state.sidebarCollapsed);
+  const filterText = useWorkspace((state) => state.filterText);
+  const filterPresets = useWorkspace((state) => state.filterPresets);
   const removeFromWorkspace = useWorkspace((state) => state.removeSession);
-  const pruneWorkspace = useWorkspace((state) => state.pruneSessions);
+  const pruneWorkspace = useWorkspace((state) => state.reconcileSessions);
+  const setSessionOrder = useWorkspace((state) => state.setSessionOrder);
+  const setFilterText = useWorkspace((state) => state.setFilterText);
+  const toggleFilterPreset = useWorkspace((state) => state.toggleFilterPreset);
+  const clearFilters = useWorkspace((state) => state.clearFilters);
+  const toggleSidebarCollapsed = useWorkspace((state) => state.toggleSidebarCollapsed);
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [draftLabel, setDraftLabel] = useState("");
   const [menu, setMenu] = useState<SessionMenuState | null>(null);
+  const [draggingKey, setDraggingKey] = useState<string | null>(null);
   const connected = status === "connected" || status === "reconnecting";
 
   const workspaceSessions = useMemo(() => {
@@ -44,10 +66,18 @@ export function SessionList({ onOpenWorkspaceManager }: { onOpenWorkspaceManager
       .map((key) => byKey.get(key))
       .filter((session): session is SessionRow => Boolean(session));
   }, [sessions, workspaceSessionKeys]);
-  const sessionTitles = useMemo(
-    () => buildDisambiguatedSessionTitles(workspaceSessions),
-    [workspaceSessions],
+  const filteredWorkspaceSessions = useMemo(
+    () =>
+      workspaceSessions.filter((session) =>
+        matchesSessionFilter(session, filterText.trim(), filterPresets),
+      ),
+    [filterPresets, filterText, workspaceSessions],
   );
+  const sessionTitles = useMemo(
+    () => buildDisambiguatedSessionTitles(filteredWorkspaceSessions),
+    [filteredWorkspaceSessions],
+  );
+  const hasActiveFilters = filterText.trim().length > 0 || filterPresets.subagent || filterPresets.cron;
 
   useEffect(() => {
     if (!menu) {
@@ -76,21 +106,12 @@ export function SessionList({ onOpenWorkspaceManager }: { onOpenWorkspaceManager
   }, [menu]);
 
   useEffect(() => {
-    pruneWorkspace(sessions.map((session) => session.key));
-  }, [pruneWorkspace, sessions]);
-
-  useEffect(() => {
-    if (workspaceInitialized || sessions.length === 0) {
+    if (sessions.length === 0) {
       return;
     }
 
-    const preferredKey =
-      sessions.find((session) => session.key === currentKey)?.key ??
-      sessions.find((session) => session.key === defaultSessionKey)?.key ??
-      sessions[0]?.key;
-
-    initializeWorkspace(preferredKey ? [preferredKey] : []);
-  }, [currentKey, defaultSessionKey, initializeWorkspace, sessions, workspaceInitialized]);
+    pruneWorkspace(sessions.map((session) => session.key));
+  }, [pruneWorkspace, sessions]);
 
   const handleClick = (key: string) => {
     if (key === currentKey) {
@@ -137,18 +158,12 @@ export function SessionList({ onOpenWorkspaceManager }: { onOpenWorkspaceManager
       return;
     }
 
-    const remainingWorkspaceKeys = workspaceSessionKeys.filter((sessionKey) => sessionKey !== key);
+    const wasCurrent = key === currentKey;
     const nextKey = await deleteSession(key);
-    removeFromWorkspace(key);
 
-    if (key === currentKey) {
+    if (wasCurrent) {
       clearMessages(key);
-      if (remainingWorkspaceKeys[0]) {
-        switchSession(remainingWorkspaceKeys[0]);
-        void broadcastSessionChange(remainingWorkspaceKeys[0]);
-      } else if (nextKey) {
-        addToWorkspace(nextKey);
-        switchSession(nextKey);
+      if (nextKey) {
         void broadcastSessionChange(nextKey);
       }
     }
@@ -156,12 +171,26 @@ export function SessionList({ onOpenWorkspaceManager }: { onOpenWorkspaceManager
 
   const handleRemoveFromWorkspace = (key: string) => {
     setMenu(null);
-    const remainingWorkspaceKeys = workspaceSessionKeys.filter((sessionKey) => sessionKey !== key);
+    const tabIndex = openSessionKeys.indexOf(key);
+    const remainingOpenSessionKeys = openSessionKeys.filter((sessionKey) => sessionKey !== key);
+    const nextActiveKey =
+      key === currentKey && tabIndex !== -1
+        ? remainingOpenSessionKeys[tabIndex] ?? remainingOpenSessionKeys[tabIndex - 1] ?? null
+        : null;
+
     removeFromWorkspace(key);
 
-    if (key === currentKey && remainingWorkspaceKeys[0]) {
-      switchSession(remainingWorkspaceKeys[0]);
-      void broadcastSessionChange(remainingWorkspaceKeys[0]);
+    if (key === currentKey && tabIndex !== -1) {
+      useWorkspace.getState().setActiveSessionKey(nextActiveKey);
+    }
+
+    syncWorkspaceState();
+
+    if (key === currentKey) {
+      const restoredActiveKey = useWorkspace.getState().activeSessionKey;
+      if (restoredActiveKey) {
+        void broadcastSessionChange(restoredActiveKey);
+      }
     }
   };
 
@@ -182,89 +211,182 @@ export function SessionList({ onOpenWorkspaceManager }: { onOpenWorkspaceManager
     });
   };
 
+  const handleDragStart = (event: DragEvent<HTMLDivElement>, key: string) => {
+    if (editingKey) {
+      event.preventDefault();
+      return;
+    }
+
+    setDraggingKey(key);
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", key);
+  };
+
+  const handleDrop = (targetKey: string) => {
+    if (!draggingKey || draggingKey === targetKey) {
+      return;
+    }
+
+    setSessionOrder(moveKeyBeforeTarget(workspaceSessionKeys, draggingKey, targetKey));
+    setDraggingKey(null);
+  };
+
   const menuSession = menu
     ? workspaceSessions.find((session) => session.key === menu.key) ?? null
     : null;
 
-  if (workspaceSessions.length === 0) {
+  if (sidebarCollapsed) {
     return (
-      <div className={styles.sidebar}>
-        <div className={styles.sidebarHeader}>
-          <div>
-            <div className={styles.headerEn}>WORKSPACE</div>
-            <div className={styles.headerJa}>工作区会话</div>
-          </div>
+      <aside className={`${styles.sidebar} ${styles.sidebarCollapsed}`}>
+        <div className={styles.collapsedControls}>
           <button
-            className={styles.createBtn}
+            type="button"
+            className={styles.iconBtn}
+            onClick={toggleSidebarCollapsed}
+            title="展开侧栏"
+          >
+            &#8250;
+          </button>
+          <button
+            type="button"
+            className={styles.iconBtn}
             onClick={onOpenWorkspaceManager}
-            title="添加会话"
+            title="管理工作区"
           >
             +
           </button>
         </div>
-        <div className={styles.empty}>工作区里还没有会话，点击右上角添加。</div>
-      </div>
+      </aside>
     );
   }
 
   return (
-    <div className={styles.sidebar}>
+    <aside className={styles.sidebar}>
       <div className={styles.sidebarHeader}>
         <div>
           <div className={styles.headerEn}>WORKSPACE</div>
           <div className={styles.headerJa}>工作区会话</div>
         </div>
-        <button
-          className={styles.createBtn}
-          onClick={onOpenWorkspaceManager}
-          title="添加会话"
-        >
-          +
-        </button>
+        <div className={styles.headerActions}>
+          <button
+            type="button"
+            className={styles.iconBtn}
+            onClick={onOpenWorkspaceManager}
+            title="添加会话"
+          >
+            +
+          </button>
+          <button
+            type="button"
+            className={styles.iconBtn}
+            onClick={toggleSidebarCollapsed}
+            title="折叠侧栏"
+          >
+            &#8249;
+          </button>
+        </div>
       </div>
-      {workspaceSessions.map((session) => (
-        <div
-          key={session.key}
-          className={`${styles.itemRow} ${session.key === currentKey ? styles.active : ""} ${session.key === defaultSessionKey ? styles.default : ""}`}
-          title={session.key}
-          onContextMenu={(event) => openMenu(event, session)}
-        >
-          {editingKey === session.key ? (
-            <div className={styles.renameRow}>
-              <input
-                className={styles.renameInput}
-                value={draftLabel}
-                onChange={(event) => setDraftLabel(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    void commitRename();
-                  }
-                  if (event.key === "Escape") {
-                    event.preventDefault();
-                    cancelRename();
-                  }
-                }}
-                placeholder="输入会话名"
-                autoFocus
-              />
-              <button className={styles.actionBtn} onClick={() => void commitRename()}>
-                保存
-              </button>
-              <button className={styles.actionBtn} onClick={cancelRename}>
-                取消
-              </button>
-            </div>
-          ) : (
-            <button className={styles.item} onClick={() => handleClick(session.key)}>
-              <span className={styles.itemLabel}>{sessionTitles.get(session.key) ?? session.key}</span>
-              {getSessionSourceTitle(session) && (
-                <span className={styles.itemMeta}>{getSessionSourceTitle(session)}</span>
-              )}
+
+      <div className={styles.filterPanel}>
+        <input
+          className={styles.filterInput}
+          value={filterText}
+          onChange={(event) => setFilterText(event.target.value)}
+          placeholder="关键词过滤"
+        />
+        <div className={styles.filterRow}>
+          <button
+            type="button"
+            className={`${styles.filterChip} ${filterPresets.subagent ? styles.filterChipActive : ""}`}
+            onClick={() => toggleFilterPreset("subagent")}
+          >
+            subagent
+          </button>
+          <button
+            type="button"
+            className={`${styles.filterChip} ${filterPresets.cron ? styles.filterChipActive : ""}`}
+            onClick={() => toggleFilterPreset("cron")}
+          >
+            cron
+          </button>
+          {hasActiveFilters && (
+            <button
+              type="button"
+              className={styles.filterClear}
+              onClick={clearFilters}
+            >
+              清空
             </button>
           )}
         </div>
-      ))}
+      </div>
+
+      {workspaceSessions.length === 0 ? (
+        <div className={styles.empty}>工作区里还没有会话，点击右上角添加。</div>
+      ) : filteredWorkspaceSessions.length === 0 ? (
+        <div className={styles.empty}>没有匹配当前过滤条件的会话。</div>
+      ) : (
+        <div className={styles.list}>
+          {filteredWorkspaceSessions.map((session) => (
+            <div
+              key={session.key}
+              className={`${styles.itemRow} ${session.key === currentKey ? styles.active : ""} ${draggingKey === session.key ? styles.dragging : ""}`}
+              title={session.key}
+              draggable={editingKey !== session.key}
+              onDragStart={(event) => handleDragStart(event, session.key)}
+              onDragOver={(event) => {
+                event.preventDefault();
+                event.dataTransfer.dropEffect = "move";
+              }}
+              onDragEnd={() => setDraggingKey(null)}
+              onDrop={(event) => {
+                event.preventDefault();
+                handleDrop(session.key);
+              }}
+              onContextMenu={(event) => openMenu(event, session)}
+            >
+              {editingKey === session.key ? (
+                <div className={styles.renameRow}>
+                  <input
+                    className={styles.renameInput}
+                    value={draftLabel}
+                    onChange={(event) => setDraftLabel(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        void commitRename();
+                      }
+                      if (event.key === "Escape") {
+                        event.preventDefault();
+                        cancelRename();
+                      }
+                    }}
+                    placeholder="输入会话名"
+                    autoFocus
+                  />
+                  <button className={styles.actionBtn} onClick={() => void commitRename()}>
+                    保存
+                  </button>
+                  <button className={styles.actionBtn} onClick={cancelRename}>
+                    取消
+                  </button>
+                </div>
+              ) : (
+                <button className={styles.item} onClick={() => handleClick(session.key)}>
+                  <span className={styles.dragHandle} aria-hidden="true">
+                    &#8801;
+                  </span>
+                  <span className={styles.itemLabel}>{sessionTitles.get(session.key) ?? session.key}</span>
+                  {getSessionSourceTitle(session) && (
+                    <span className={styles.itemMeta}>{getSessionSourceTitle(session)}</span>
+                  )}
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
       {menu && menuSession ? (
         <div
           className={styles.contextMenu}
@@ -293,6 +415,6 @@ export function SessionList({ onOpenWorkspaceManager }: { onOpenWorkspaceManager
           </button>
         </div>
       ) : null}
-    </div>
+    </aside>
   );
 }
