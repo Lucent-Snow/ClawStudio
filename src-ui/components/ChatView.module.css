@@ -1,0 +1,140 @@
+.container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.messagesShell {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+.infoBar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--primary-faint);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  background: var(--surface);
+}
+
+.infoLabel {
+  font-family: var(--font-label);
+  font-size: var(--text-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--primary);
+}
+
+.modelControls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1 1 420px;
+  flex-wrap: wrap;
+}
+
+.modelSelect {
+  min-width: 220px;
+  max-width: min(30vw, 320px);
+  padding: 6px 10px;
+  border: 1px solid var(--primary-faint);
+  background: color-mix(in srgb, var(--surface) 92%, var(--surface-tint) 8%);
+  color: var(--text);
+}
+
+.modelInput {
+  min-width: 220px;
+  flex: 1 1 240px;
+  padding: 6px 10px;
+  border: 1px solid var(--primary-faint);
+  background: color-mix(in srgb, var(--surface) 92%, var(--surface-tint) 8%);
+  color: var(--text);
+}
+
+.modelInput:disabled,
+.modelSelect:disabled {
+  color: var(--text-tertiary);
+}
+
+.modelApplyBtn {
+  padding: 6px 10px;
+  background: var(--primary-faint);
+  color: var(--primary);
+  transition: background var(--transition-normal), color var(--transition-normal);
+}
+
+.modelApplyBtn:hover:enabled {
+  background: color-mix(in srgb, var(--primary-faint) 55%, white 45%);
+}
+
+.modelApplyBtn:disabled {
+  cursor: default;
+  color: var(--text-tertiary);
+}
+
+.modelMeta {
+  min-width: 0;
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+}
+
+.modelHint {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+}
+
+.modelError {
+  color: var(--error);
+  font-size: var(--text-xs);
+}
+
+.messages {
+  flex: 1;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 40px 80px;
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
+}
+
+.scrollToBottomBtn {
+  position: absolute;
+  right: 28px;
+  bottom: 24px;
+  z-index: 10;
+  border: 1px solid var(--color-border);
+  background: color-mix(in srgb, var(--surface) 92%, white 8%);
+  color: var(--text);
+  padding: 10px 14px;
+  font-size: var(--text-xs);
+  letter-spacing: 0.06em;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.12);
+  backdrop-filter: blur(12px);
+  cursor: pointer;
+  transition: background var(--transition-normal), transform var(--transition-normal);
+}
+
+.scrollToBottomBtn:hover {
+  background: var(--surface-tint);
+  transform: translateY(-1px);
+}
+
+.empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-tertiary);
+  font-size: var(--text-md);
+}

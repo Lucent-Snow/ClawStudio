@@ -1,0 +1,109 @@
+.bubble {
+  position: relative;
+  max-width: 80%;
+  min-width: 0;
+  padding: 20px 30px;
+  font-size: var(--text-base);
+  line-height: 1.8;
+  word-break: break-word;
+  animation: fade-up 0.4s ease-out both;
+}
+
+.meta {
+  font-family: var(--font-label);
+  font-size: 10px;
+  color: var(--primary);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+.user {
+  align-self: flex-end;
+  background: var(--primary);
+  color: var(--text-inverse);
+}
+
+.user .meta {
+  text-align: right;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.assistant {
+  align-self: flex-start;
+  background: var(--surface-tint);
+  border-left: 2px solid var(--primary);
+}
+
+.tool {
+  align-self: flex-start;
+  background: color-mix(in srgb, var(--surface-tint) 70%, var(--surface) 30%);
+  border-left: 2px solid var(--color-border);
+}
+
+.emotionTag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 8px;
+  padding: 2px 6px;
+  background: var(--primary-faint);
+  color: var(--primary);
+  font-size: var(--text-xs);
+  line-height: 1.2;
+}
+
+.assistantContent {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.userText {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.userContent {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.thinkingDots {
+  color: var(--text-secondary);
+  font-size: 22px;
+  line-height: 1;
+  letter-spacing: 0.12em;
+  animation: thinking-pulse 1.1s ease-in-out infinite;
+}
+
+.cursor {
+  display: inline-block;
+  line-height: 1;
+  animation: cursor-blink 1s infinite;
+}
+
+@keyframes cursor-blink {
+  0%,
+  50% {
+    opacity: 1;
+  }
+
+  51%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes thinking-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}

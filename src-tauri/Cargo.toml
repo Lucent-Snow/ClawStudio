@@ -1,0 +1,41 @@
+[package]
+name = "clawstudio"
+version = "0.1.0"
+description = "ClawStudio desktop workspace"
+authors = ["Lucent Snow"]
+license = ""
+repository = "https://github.com/Lucent-Snow/ClawStudio"
+edition = "2021"
+rust-version = "1.77.2"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+name = "clawstudio_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.5.4", features = [] }
+
+[dependencies]
+base64 = "0.22"
+dirs = "6.0"
+ed25519-dalek = { version = "2.2.0", features = ["pkcs8", "pem", "rand_core"] }
+futures-util = "0.3"
+pkcs8 = { version = "0.10", features = ["pem"] }
+rand_core = { version = "0.6", features = ["getrandom"] }
+sha2 = "0.10"
+serde_json = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+log = "0.4"
+tauri = { version = "2.10.0", features = ["protocol-asset"] }
+tauri-plugin-log = "2"
+tauri-plugin-mcp-bridge = "0.10"
+tauri-plugin-process = "2"
+tauri-plugin-updater = "2"
+tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "sync", "time"] }
+tokio-tungstenite = { version = "0.24", features = ["connect", "rustls-tls-webpki-roots"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+
+[target.'cfg(windows)'.dependencies]
+winreg = "0.55"
