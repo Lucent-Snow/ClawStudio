@@ -114,13 +114,6 @@ export interface SessionsListResult {
   sessions: SessionRow[];
 }
 
-export interface GatewayAgentIdentity {
-  agentId: string;
-  name?: string | null;
-  avatar?: string | null;
-  emoji?: string | null;
-}
-
 // UI Message (normalized for display)
 export interface UIMessage {
   id: string;

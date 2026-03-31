@@ -47,7 +47,6 @@ pub fn run() {
             gateway::gateway_history,
             gateway::gateway_sessions_list,
             gateway::gateway_models_list,
-            gateway::gateway_agent_identity_get,
             gateway::gateway_sessions_reset,
             gateway::gateway_sessions_patch,
             gateway::gateway_sessions_delete,
