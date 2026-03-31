@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type {
+  GatewayAgentIdentity,
   GatewayChatAttachment,
   HelloOk,
   SessionsListResult,
@@ -80,6 +81,10 @@ export async function gatewaySessionsList(): Promise<SessionsListResult> {
 
 export async function gatewayModelsList(): Promise<GatewayModelOption[]> {
   return invoke("gateway_models_list");
+}
+
+export async function gatewayAgentIdentityGet(sessionKey: string): Promise<GatewayAgentIdentity> {
+  return invoke("gateway_agent_identity_get", { sessionKey });
 }
 
 export async function gatewaySessionsReset(

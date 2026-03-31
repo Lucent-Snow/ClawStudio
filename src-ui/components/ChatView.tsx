@@ -1,14 +1,22 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  gatewayAgentIdentityGet,
   gatewayModelsList,
   type GatewayModelOption,
 } from "../lib/tauri-gateway";
+import { getSessionAgentName } from "../lib/session-display";
+import type { GatewayAgentIdentity } from "../lib/types";
 import { useChat } from "../stores/chat";
 import { useGateway } from "../stores/gateway";
 import { useAutoScroll } from "../hooks/useAutoScroll";
 import { MessageBubble } from "./MessageBubble";
 import { Composer } from "./Composer";
 import styles from "./ChatView.module.css";
+
+function normalizeText(value: string | null | undefined): string | null {
+  const normalized = value?.trim();
+  return normalized ? normalized : null;
+}
 
 function composeGatewayModelValue(model: string | null | undefined, provider?: string | null): string {
   const normalizedModel = model?.trim() ?? "";
@@ -33,7 +41,11 @@ export function ChatView() {
   const [isLoadingModels, setIsLoadingModels] = useState(false);
   const [catalogModels, setCatalogModels] = useState<GatewayModelOption[]>([]);
   const [modelError, setModelError] = useState<string | null>(null);
+  const [identity, setIdentity] = useState<GatewayAgentIdentity | null>(null);
+  const [identityError, setIdentityError] = useState<string | null>(null);
+  const [isLoadingIdentity, setIsLoadingIdentity] = useState(false);
   const modelRequestIdRef = useRef(0);
+  const identityRequestIdRef = useRef(0);
 
   const { scrollRef, isAtBottom, scrollToBottom, handleScroll } = useAutoScroll([
     messages,
@@ -41,6 +53,7 @@ export function ChatView() {
   ]);
 
   const session = sessions.find((s) => s.key === currentKey);
+  const sessionAgentName = session ? getSessionAgentName(session) : null;
   const sessionModelValue = composeGatewayModelValue(session?.model, session?.modelProvider);
   const availableModels = useMemo(() => {
     const options = new Map<string, { value: string; label: string }>();
@@ -74,6 +87,12 @@ export function ChatView() {
     setModelError(null);
     setIsApplyingModel(false);
   }, [session?.key, sessionModelValue]);
+
+  useEffect(() => {
+    setIdentity(null);
+    setIdentityError(null);
+    setIsLoadingIdentity(false);
+  }, [currentKey]);
 
   useEffect(() => {
     let cancelled = false;
@@ -110,8 +129,52 @@ export function ChatView() {
     };
   }, [status]);
 
+  useEffect(() => {
+    if (!currentKey || status !== "connected") {
+      setIsLoadingIdentity(false);
+      return;
+    }
+
+    let cancelled = false;
+    const requestId = identityRequestIdRef.current + 1;
+    identityRequestIdRef.current = requestId;
+    setIsLoadingIdentity(true);
+    setIdentityError(null);
+
+    void gatewayAgentIdentityGet(currentKey)
+      .then((nextIdentity) => {
+        if (!cancelled && identityRequestIdRef.current === requestId) {
+          setIdentity(nextIdentity);
+        }
+      })
+      .catch((error) => {
+        if (!cancelled && identityRequestIdRef.current === requestId) {
+          setIdentity(null);
+          setIdentityError(error instanceof Error ? error.message : String(error));
+        }
+      })
+      .finally(() => {
+        if (!cancelled && identityRequestIdRef.current === requestId) {
+          setIsLoadingIdentity(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentKey, status]);
+
   const connected = status === "connected";
   const modelSwitchDisabled = !currentKey || !connected || isStreaming || isApplyingModel;
+  const identityAgentId = normalizeText(identity?.agentId) ?? sessionAgentName;
+  const identityName = normalizeText(identity?.name);
+  const identityAvatar = normalizeText(identity?.avatar);
+  const identityEmoji = normalizeText(identity?.emoji);
+  const identityTitle = identityAgentId ?? identityName ?? "unknown-agent";
+  const hasDistinctIdentityName =
+    Boolean(identityAgentId && identityName) &&
+    identityAgentId!.toLocaleLowerCase() !== identityName!.toLocaleLowerCase();
+  const identityFallbackGlyph = (identityEmoji ?? identityTitle.slice(0, 1)).toUpperCase();
   const streamingMessage = isStreaming
       ? {
           id: "__streaming__",
@@ -204,6 +267,63 @@ export function ChatView() {
         )}
         {modelError && <span className={styles.modelError}>{modelError}</span>}
       </div>
+      {currentKey && (
+        <div className={styles.identityBar}>
+          <div className={styles.identityCard}>
+            <div className={styles.identityAvatar} aria-hidden="true">
+              {identityAvatar ? (
+                <img
+                  className={styles.identityAvatarImage}
+                  src={identityAvatar}
+                  alt={`${identityTitle} avatar`}
+                />
+              ) : (
+                <span className={styles.identityAvatarFallback}>{identityFallbackGlyph}</span>
+              )}
+            </div>
+            <div className={styles.identityBody}>
+              <div className={styles.identityEyebrow}>Agent Identity</div>
+              <div className={styles.identityTitleRow}>
+                <strong className={styles.identityTitle}>{identityTitle}</strong>
+                {hasDistinctIdentityName && (
+                  <span className={styles.identityDisplayName}>{identityName}</span>
+                )}
+              </div>
+              <div className={styles.identityMetaRow}>
+                {identityAgentId && (
+                  <span className={styles.identityMeta}>
+                    <span className={styles.identityMetaLabel}>Agent</span>
+                    <span className={styles.identityMetaValue}>{identityAgentId}</span>
+                  </span>
+                )}
+                {hasDistinctIdentityName && (
+                  <span className={styles.identityMeta}>
+                    <span className={styles.identityMetaLabel}>Display</span>
+                    <span className={styles.identityMetaValue}>{identityName}</span>
+                  </span>
+                )}
+                <span className={styles.identityMeta}>
+                  <span className={styles.identityMetaLabel}>Session</span>
+                  <span className={styles.identityMetaValue}>{currentKey}</span>
+                </span>
+              </div>
+              {isLoadingIdentity && (
+                <div className={styles.identityHint}>正在读取当前 agent identity...</div>
+              )}
+              {!isLoadingIdentity && identityError && (
+                <div className={styles.identityError}>
+                  identity 读取失败，当前使用 session 信息兜底
+                </div>
+              )}
+              {!isLoadingIdentity && !identity && !identityError && (
+                <div className={styles.identityHint}>
+                  当前网关未返回额外 identity 字段，界面使用 session 信息展示。
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
       <div className={styles.messagesShell}>
         <div className={styles.messages} ref={scrollRef} onScroll={handleScroll}>
           {messages.map((m) => (
