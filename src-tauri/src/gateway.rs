@@ -290,6 +290,17 @@ pub async fn gateway_models_list(state: State<'_, GatewayState>) -> Result<Vec<G
 }
 
 #[tauri::command]
+pub async fn gateway_agent_identity_get(
+    state: State<'_, GatewayState>,
+    session_key: String,
+) -> Result<Value, String> {
+    let params = json!({
+        "sessionKey": session_key,
+    });
+    send_request(state, "agent.identity.get", params).await
+}
+
+#[tauri::command]
 pub async fn gateway_sessions_reset(
     state: State<'_, GatewayState>,
     session_key: String,
