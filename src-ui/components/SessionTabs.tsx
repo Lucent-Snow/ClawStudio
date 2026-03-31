@@ -119,7 +119,7 @@ export function SessionTabs() {
   const switchSession = useGateway((state) => state.switchSession);
   const closeSessionTab = useGateway((state) => state.closeSessionTab);
   const reorderOpenSessions = useGateway((state) => state.reorderOpenSessions);
-  const isStreaming = useChat((state) => state.isStreaming);
+  const streamingSessionKeys = useChat((state) => state.streamingSessionKeys);
   const [activeDragKey, setActiveDragKey] = useState<string | null>(null);
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -159,6 +159,10 @@ export function SessionTabs() {
   const sessionTitles = useMemo(
     () => buildDisambiguatedSessionTitles(openSessions),
     [openSessions],
+  );
+  const streamingSessionKeySet = useMemo(
+    () => new Set(streamingSessionKeys),
+    [streamingSessionKeys],
   );
   const handleDragStart = (event: DragStartEvent) => {
     setActiveDragKey(String(event.active.id));
@@ -210,7 +214,7 @@ export function SessionTabs() {
               onClose={handleClose}
               onSwitch={handleSwitch}
               session={session}
-              streaming={isStreaming && session.key === currentSessionKey}
+              streaming={streamingSessionKeySet.has(session.key)}
               title={sessionTitles.get(session.key) ?? session.key}
             />
           ))}

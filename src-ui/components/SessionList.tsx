@@ -181,7 +181,7 @@ function SortableSessionItem({
 
 export function SessionList({ onOpenWorkspaceManager }: { onOpenWorkspaceManager: () => void }) {
   const clearMessages = useChat((state) => state.clearMessages);
-  const isStreaming = useChat((state) => state.isStreaming);
+  const streamingSessionKeys = useChat((state) => state.streamingSessionKeys);
   const sessions = useGateway((state) => state.sessions);
   const currentKey = useGateway((state) => state.currentSessionKey);
   const openSessionKeys = useGateway((state) => state.openSessionKeys);
@@ -226,6 +226,10 @@ export function SessionList({ onOpenWorkspaceManager }: { onOpenWorkspaceManager
   const sessionTitles = useMemo(
     () => buildDisambiguatedSessionTitles(workspaceSessions),
     [workspaceSessions],
+  );
+  const streamingSessionKeySet = useMemo(
+    () => new Set(streamingSessionKeys),
+    [streamingSessionKeys],
   );
 
   useEffect(() => {
@@ -470,7 +474,7 @@ export function SessionList({ onOpenWorkspaceManager }: { onOpenWorkspaceManager
                   onRenameCancel={cancelRename}
                   onRenameCommit={commitRename}
                   session={session}
-                  streaming={isStreaming && session.key === currentKey}
+                  streaming={streamingSessionKeySet.has(session.key)}
                   title={sessionTitles.get(session.key) ?? session.key}
                 />
               ))}

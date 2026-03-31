@@ -34,18 +34,25 @@ export function MessageBubble({
       resolvedAssistantAvatar.startsWith("/")),
   );
   const assistantAvatarNode =
-    resolvedAssistantAvatar && !isToolMessage ? (
-      renderAssistantAvatarAsImage ? (
-        <img
-          className={styles.assistantAvatar}
-          src={resolvedAssistantAvatar}
-          alt={resolvedAssistantName}
-        />
-      ) : (
-        <div className={styles.assistantAvatarText} aria-hidden="true">
-          {resolvedAssistantAvatar}
-        </div>
-      )
+    !isToolMessage ? (
+      <div
+        className={`${styles.assistantAvatarSlot} ${resolvedAssistantAvatar ? "" : styles.assistantAvatarSlotEmpty}`.trim()}
+        aria-hidden={resolvedAssistantAvatar ? undefined : "true"}
+      >
+        {resolvedAssistantAvatar ? (
+          renderAssistantAvatarAsImage ? (
+            <img
+              className={styles.assistantAvatar}
+              src={resolvedAssistantAvatar}
+              alt={resolvedAssistantName}
+            />
+          ) : (
+            <div className={styles.assistantAvatarText} aria-hidden="true">
+              {resolvedAssistantAvatar}
+            </div>
+          )
+        ) : null}
+      </div>
     ) : null;
   const bubble = (
     <div className={`${styles.bubble} ${cls}`}>

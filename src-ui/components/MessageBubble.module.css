@@ -74,6 +74,20 @@
   flex: 1;
 }
 
+.assistantAvatarSlot {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.assistantAvatarSlotEmpty {
+  opacity: 0;
+  pointer-events: none;
+}
+
 .assistantAvatar {
   width: 36px;
   height: 36px;

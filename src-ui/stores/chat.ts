@@ -423,6 +423,7 @@ function upsertToolMessage(messages: UIMessage[], label: string, content: string
 
 interface ChatState extends SessionChatState {
   activeSessionKey: string | null;
+  streamingSessionKeys: string[];
   activateSession: (sessionKey: string) => void;
   hasSessionState: (sessionKey: string) => boolean;
   send: (sessionKey: string, text: string, attachments?: UIAttachment[]) => Promise<void>;
@@ -435,6 +436,29 @@ interface ChatState extends SessionChatState {
 }
 
 export const useChat = create<ChatState>()((set, get) => {
+  function syncStreamingSessionKey(
+    sessionKey: string,
+    previousState: SessionChatState,
+    nextState: SessionChatState,
+  ) {
+    if (previousState.isStreaming === nextState.isStreaming) {
+      return;
+    }
+
+    set((state) => {
+      const nextKeys = new Set(state.streamingSessionKeys);
+      if (nextState.isStreaming) {
+        nextKeys.add(sessionKey);
+      } else {
+        nextKeys.delete(sessionKey);
+      }
+
+      return {
+        streamingSessionKeys: Array.from(nextKeys),
+      };
+    });
+  }
+
   function applySessionUpdate(
     sessionKey: string,
     updater: (state: SessionChatState) => SessionChatState,
@@ -442,6 +466,7 @@ export const useChat = create<ChatState>()((set, get) => {
     const previousState = getCachedSessionState(sessionKey);
     const nextState = updater(previousState);
     setCachedSessionState(sessionKey, nextState);
+    syncStreamingSessionKey(sessionKey, previousState, nextState);
 
     if (get().activeSessionKey === sessionKey) {
       set(snapshotToVisibleState(nextState));
@@ -449,7 +474,9 @@ export const useChat = create<ChatState>()((set, get) => {
   }
 
   function replaceSessionState(sessionKey: string, nextState: SessionChatState) {
+    const previousState = getCachedSessionState(sessionKey);
     setCachedSessionState(sessionKey, nextState);
+    syncStreamingSessionKey(sessionKey, previousState, nextState);
     if (get().activeSessionKey === sessionKey) {
       set(snapshotToVisibleState(nextState));
     }
@@ -457,6 +484,7 @@ export const useChat = create<ChatState>()((set, get) => {
 
   return {
     activeSessionKey: null,
+    streamingSessionKeys: [],
     ...createEmptySessionState(),
 
     activateSession: (sessionKey) => {
@@ -579,6 +607,9 @@ export const useChat = create<ChatState>()((set, get) => {
       historyLoadRequestIds.delete(targetSessionKey);
       resetStreamingState(targetSessionKey);
       sessionStateCache.delete(targetSessionKey);
+      set((state) => ({
+        streamingSessionKeys: state.streamingSessionKeys.filter((key) => key !== targetSessionKey),
+      }));
 
       if (get().activeSessionKey === targetSessionKey) {
         set(snapshotToVisibleState(createEmptySessionState()));

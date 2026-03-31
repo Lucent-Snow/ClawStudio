@@ -14,8 +14,7 @@ import styles from "./SessionWorkspaceModal.module.css";
 
 export function SessionWorkspaceModal({ onClose }: { onClose: () => void }) {
   const sessions = useGateway((state) => state.sessions);
-  const isStreaming = useChat((state) => state.isStreaming);
-  const currentSessionKey = useGateway((state) => state.currentSessionKey);
+  const streamingSessionKeys = useChat((state) => state.streamingSessionKeys);
   const status = useGateway((state) => state.status);
   const createSession = useGateway((state) => state.createSession);
   const switchSession = useGateway((state) => state.switchSession);
@@ -43,6 +42,10 @@ export function SessionWorkspaceModal({ onClose }: { onClose: () => void }) {
   const titles = useMemo(
     () => buildDisambiguatedSessionTitles(filteredSessions),
     [filteredSessions],
+  );
+  const streamingSessionKeySet = useMemo(
+    () => new Set(streamingSessionKeys),
+    [streamingSessionKeys],
   );
 
   const workspaceSessions = filteredSessions.filter((session) => workspaceKeySet.has(session.key));
@@ -79,7 +82,7 @@ export function SessionWorkspaceModal({ onClose }: { onClose: () => void }) {
       <div className={styles.sessionCopy}>
         <div className={styles.sessionTitle}>
           <span className={styles.sessionTitleText}>{titles.get(session.key) ?? session.key}</span>
-          {isStreaming && session.key === currentSessionKey && (
+          {streamingSessionKeySet.has(session.key) && (
             <span className={styles.streamingIndicator}>...</span>
           )}
         </div>
