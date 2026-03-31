@@ -1,14 +1,72 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  gatewayAgentIdentityGet,
   gatewayModelsList,
   type GatewayModelOption,
 } from "../lib/tauri-gateway";
+import type { GatewayAgentIdentity } from "../lib/types";
+import { useSettings } from "../stores/settings";
 import { useChat } from "../stores/chat";
 import { useGateway } from "../stores/gateway";
 import { useAutoScroll } from "../hooks/useAutoScroll";
 import { MessageBubble } from "./MessageBubble";
 import { Composer } from "./Composer";
 import styles from "./ChatView.module.css";
+
+function normalizeText(value: string | null | undefined): string | null {
+  const normalized = value?.trim();
+  return normalized ? normalized : null;
+}
+
+function resolveGatewayHttpBase(url: string | null | undefined): string | null {
+  const normalized = url?.trim();
+  if (!normalized) {
+    return null;
+  }
+
+  try {
+    const parsed = new URL(normalized);
+    if (parsed.protocol === "ws:") {
+      parsed.protocol = "http:";
+    } else if (parsed.protocol === "wss:") {
+      parsed.protocol = "https:";
+    }
+    parsed.pathname = "/";
+    parsed.search = "";
+    parsed.hash = "";
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+}
+
+function resolveAssistantAvatar(
+  identity: GatewayAgentIdentity | null,
+  gatewayUrl: string | null | undefined,
+): string | null {
+  const avatar = normalizeText(identity?.avatar);
+  const emoji = normalizeText(identity?.emoji);
+  if (!avatar) {
+    return emoji;
+  }
+
+  if (/^https?:\/\//i.test(avatar) || /^data:image\//i.test(avatar)) {
+    return avatar;
+  }
+
+  if (avatar.startsWith("/")) {
+    const base = resolveGatewayHttpBase(gatewayUrl);
+    if (base) {
+      try {
+        return new URL(avatar, base).toString();
+      } catch {
+        return avatar;
+      }
+    }
+  }
+
+  return avatar;
+}
 
 function composeGatewayModelValue(model: string | null | undefined, provider?: string | null): string {
   const normalizedModel = model?.trim() ?? "";
@@ -28,12 +86,15 @@ export function ChatView() {
   const sessions = useGateway((s) => s.sessions);
   const status = useGateway((s) => s.status);
   const updateSessionModel = useGateway((s) => s.updateSessionModel);
+  const gatewayUrl = useSettings((s) => s.gateway.url);
   const [modelDraft, setModelDraft] = useState("");
   const [isApplyingModel, setIsApplyingModel] = useState(false);
   const [isLoadingModels, setIsLoadingModels] = useState(false);
   const [catalogModels, setCatalogModels] = useState<GatewayModelOption[]>([]);
   const [modelError, setModelError] = useState<string | null>(null);
+  const [assistantIdentity, setAssistantIdentity] = useState<GatewayAgentIdentity | null>(null);
   const modelRequestIdRef = useRef(0);
+  const identityRequestIdRef = useRef(0);
 
   const { scrollRef, isAtBottom, scrollToBottom, handleScroll } = useAutoScroll([
     messages,
@@ -110,8 +171,45 @@ export function ChatView() {
     };
   }, [status]);
 
+  useEffect(() => {
+    if (!currentKey) {
+      setAssistantIdentity(null);
+      return;
+    }
+
+    if (status !== "connected") {
+      if (status !== "reconnecting") {
+        setAssistantIdentity(null);
+      }
+      return;
+    }
+
+    let cancelled = false;
+    const requestId = identityRequestIdRef.current + 1;
+    identityRequestIdRef.current = requestId;
+    setAssistantIdentity(null);
+
+    void gatewayAgentIdentityGet(currentKey)
+      .then((identity) => {
+        if (!cancelled && identityRequestIdRef.current === requestId) {
+          setAssistantIdentity(identity);
+        }
+      })
+      .catch(() => {
+        if (!cancelled && identityRequestIdRef.current === requestId) {
+          setAssistantIdentity(null);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentKey, status]);
+
   const connected = status === "connected";
   const modelSwitchDisabled = !currentKey || !connected || isStreaming || isApplyingModel;
+  const assistantName = normalizeText(assistantIdentity?.name) ?? "助手";
+  const assistantAvatar = resolveAssistantAvatar(assistantIdentity, gatewayUrl);
   const streamingMessage = isStreaming
       ? {
           id: "__streaming__",
@@ -207,9 +305,22 @@ export function ChatView() {
       <div className={styles.messagesShell}>
         <div className={styles.messages} ref={scrollRef} onScroll={handleScroll}>
           {messages.map((m) => (
-            <MessageBubble key={m.id} message={m} />
+            <MessageBubble
+              key={m.id}
+              message={m}
+              assistantName={assistantName}
+              assistantAvatar={assistantAvatar}
+            />
           ))}
-          {streamingMessage && <MessageBubble key={streamingMessage.id} message={streamingMessage} isStreaming />}
+          {streamingMessage && (
+            <MessageBubble
+              key={streamingMessage.id}
+              message={streamingMessage}
+              isStreaming
+              assistantName={assistantName}
+              assistantAvatar={assistantAvatar}
+            />
+          )}
         </div>
         {!isAtBottom && (
           <button
