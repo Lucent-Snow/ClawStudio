@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { broadcastSessionChange } from "../lib/window-sync";
 import {
   buildDisambiguatedSessionTitles,
+  getSessionAgentName,
   getSessionSourceTitle,
 } from "../lib/session-display";
 import { matchesSessionFilter } from "../lib/session-filter";
@@ -66,6 +67,26 @@ export function SessionWorkspaceModal({ onClose }: { onClose: () => void }) {
     }
   };
 
+  const renderSessionCopy = (session: SessionRow) => {
+    const agentName = getSessionAgentName(session);
+    const sourceTitle = getSessionSourceTitle(session);
+    const sourceLabel = agentName && sourceTitle === agentName ? "Agent" : "来源";
+
+    return (
+      <div className={styles.sessionCopy}>
+        <div className={styles.sessionTitle}>
+          {titles.get(session.key) ?? session.key}
+        </div>
+        {sourceTitle && (
+          <div className={styles.sessionMeta}>
+            {sourceLabel}: {sourceTitle}
+          </div>
+        )}
+        <div className={styles.sessionKey}>{session.key}</div>
+      </div>
+    );
+  };
+
   return (
     <div className={styles.overlay} onClick={onClose}>
       <div className={styles.panel} onClick={(event) => event.stopPropagation()}>
@@ -111,7 +132,7 @@ export function SessionWorkspaceModal({ onClose }: { onClose: () => void }) {
               className={styles.input}
               value={filterText}
               onChange={(event) => setFilterText(event.target.value)}
-              placeholder="搜索会话名称、来源、key、model"
+              placeholder="搜索会话名称、agent、key、model"
             />
             <div className={styles.filterRow}>
               <button
@@ -147,17 +168,7 @@ export function SessionWorkspaceModal({ onClose }: { onClose: () => void }) {
                 <div className={styles.groupTitle}>已在工作区</div>
                 {workspaceSessions.map((session) => (
                   <div key={session.key} className={styles.sessionRow}>
-                    <div className={styles.sessionCopy}>
-                      <div className={styles.sessionTitle}>
-                        {titles.get(session.key) ?? session.key}
-                      </div>
-                      {getSessionSourceTitle(session) && (
-                        <div className={styles.sessionMeta}>
-                          来源: {getSessionSourceTitle(session)}
-                        </div>
-                      )}
-                      <div className={styles.sessionKey}>{session.key}</div>
-                    </div>
+                    {renderSessionCopy(session)}
                     <button type="button" className={styles.secondaryButton} disabled>
                       已加入
                     </button>
@@ -173,17 +184,7 @@ export function SessionWorkspaceModal({ onClose }: { onClose: () => void }) {
               ) : (
                 availableSessions.map((session) => (
                   <div key={session.key} className={styles.sessionRow}>
-                    <div className={styles.sessionCopy}>
-                      <div className={styles.sessionTitle}>
-                        {titles.get(session.key) ?? session.key}
-                      </div>
-                      {getSessionSourceTitle(session) && (
-                        <div className={styles.sessionMeta}>
-                          来源: {getSessionSourceTitle(session)}
-                        </div>
-                      )}
-                      <div className={styles.sessionKey}>{session.key}</div>
-                    </div>
+                    {renderSessionCopy(session)}
                     <button
                       type="button"
                       className={styles.primaryButton}
