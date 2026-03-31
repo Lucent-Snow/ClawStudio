@@ -51,25 +51,86 @@
 .status {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  min-width: 128px;
+  justify-content: center;
+  padding: 7px 12px;
+  border: 1px solid transparent;
+  border-radius: 999px;
   font-family: var(--font-label);
   font-size: var(--text-xs);
-  letter-spacing: 0.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--text-secondary);
+  transition:
+    background-color var(--transition-normal),
+    border-color var(--transition-normal),
+    color var(--transition-normal);
 }
 
 .dot {
-  width: 8px;
-  height: 8px;
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
   background: currentColor;
-  transform: rotate(45deg);
+  box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 18%, transparent);
 }
 
-.dot.connected { color: #6fdc8c; }
-.dot.reconnecting { color: #f1c21b; }
-.dot.error { color: #fa4d56; }
-.dot.disconnected { color: #8b92a0; }
+.statusConnecting {
+  color: #0f62fe;
+  background: rgba(15, 98, 254, 0.12);
+  border-color: rgba(15, 98, 254, 0.28);
+}
+
+.statusConnected {
+  color: #16794a;
+  background: rgba(22, 121, 74, 0.12);
+  border-color: rgba(22, 121, 74, 0.28);
+}
+
+.statusReconnecting {
+  color: #b86a00;
+  background: rgba(255, 176, 32, 0.18);
+  border-color: rgba(184, 106, 0, 0.28);
+}
+
+.statusDisconnected {
+  color: #6b7280;
+  background: rgba(107, 114, 128, 0.12);
+  border-color: rgba(107, 114, 128, 0.24);
+}
+
+.statusError {
+  color: #c1121f;
+  background: rgba(193, 18, 31, 0.12);
+  border-color: rgba(193, 18, 31, 0.26);
+}
+
+.dot.connecting {
+  color: #0f62fe;
+  animation: status-pulse 1.2s ease-in-out infinite;
+}
+
+.dot.connected { color: #16794a; }
+
+.dot.reconnecting {
+  color: #b86a00;
+  animation: status-pulse 0.9s ease-in-out infinite;
+}
+
+.dot.error { color: #c1121f; }
+.dot.disconnected { color: #6b7280; }
+
+@keyframes status-pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 0.72;
+  }
+}
 
 .iconBtn {
   width: 32px;

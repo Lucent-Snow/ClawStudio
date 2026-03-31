@@ -3,6 +3,13 @@ import { useGateway } from "../stores/gateway";
 import styles from "./TitleBar.module.css";
 
 const appWindow = getCurrentWindow();
+const STATUS_CLASS_MAP = {
+  disconnected: styles.statusDisconnected,
+  connecting: styles.statusConnecting,
+  connected: styles.statusConnected,
+  reconnecting: styles.statusReconnecting,
+  error: styles.statusError,
+} as const;
 
 export function TitleBar({ onOpenSettings }: { onOpenSettings: () => void }) {
   const status = useGateway((s) => s.status);
@@ -16,7 +23,7 @@ export function TitleBar({ onOpenSettings }: { onOpenSettings: () => void }) {
         </div>
       </div>
       <div className={styles.right}>
-        <div className={styles.status}>
+        <div className={`${styles.status} ${STATUS_CLASS_MAP[status]}`}>
           <span className={`${styles.dot} ${styles[status]}`} />
           {status}
         </div>
