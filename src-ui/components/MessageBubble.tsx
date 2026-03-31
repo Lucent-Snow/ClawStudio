@@ -3,12 +3,21 @@ import { AssistantMessageContent } from "./AssistantMessageContent";
 import { MessageAttachments } from "./MessageAttachments";
 import styles from "./MessageBubble.module.css";
 
+function normalizeLabel(value: string | null | undefined): string | null {
+  const normalized = value?.trim();
+  return normalized ? normalized : null;
+}
+
 export function MessageBubble({
   message,
   isStreaming = false,
+  assistantName,
+  assistantAvatar,
 }: {
   message: UIMessage;
   isStreaming?: boolean;
+  assistantName?: string | null;
+  assistantAvatar?: string | null;
 }) {
   const isToolMessage = message.displayKind === "tool";
   const cls = message.role === "user"
@@ -16,15 +25,36 @@ export function MessageBubble({
     : isToolMessage
       ? styles.tool
       : styles.assistant;
-
-  return (
+  const resolvedAssistantName = normalizeLabel(assistantName) ?? "助手";
+  const resolvedAssistantAvatar = normalizeLabel(assistantAvatar);
+  const renderAssistantAvatarAsImage = Boolean(
+    resolvedAssistantAvatar &&
+    (/^https?:\/\//i.test(resolvedAssistantAvatar) ||
+      /^data:image\//i.test(resolvedAssistantAvatar) ||
+      resolvedAssistantAvatar.startsWith("/")),
+  );
+  const assistantAvatarNode =
+    resolvedAssistantAvatar && !isToolMessage ? (
+      renderAssistantAvatarAsImage ? (
+        <img
+          className={styles.assistantAvatar}
+          src={resolvedAssistantAvatar}
+          alt={resolvedAssistantName}
+        />
+      ) : (
+        <div className={styles.assistantAvatarText} aria-hidden="true">
+          {resolvedAssistantAvatar}
+        </div>
+      )
+    ) : null;
+  const bubble = (
     <div className={`${styles.bubble} ${cls}`}>
       <div className={styles.meta}>
         {message.role === "user"
           ? "我 \u25C6"
           : isToolMessage
             ? "\u25C6 工具"
-            : "\u25C6 助手"}
+            : `\u25C6 ${resolvedAssistantName}`}
       </div>
       {message.role === "assistant" ? (
         <div className={styles.assistantContent}>
@@ -58,4 +88,15 @@ export function MessageBubble({
       )}
     </div>
   );
+
+  if (message.role === "assistant" && !isToolMessage) {
+    return (
+      <div className={styles.assistantRow}>
+        {assistantAvatarNode}
+        {bubble}
+      </div>
+    );
+  }
+
+  return bubble;
 }

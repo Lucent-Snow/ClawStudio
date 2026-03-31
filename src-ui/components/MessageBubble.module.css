@@ -9,6 +9,18 @@
   animation: fade-up 0.4s ease-out both;
 }
 
+.assistantRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
+  align-self: flex-start;
+}
+
+.assistantRow .bubble {
+  max-width: min(80%, calc(100% - 48px));
+}
+
 .meta {
   font-family: var(--font-label);
   font-size: 10px;
@@ -58,6 +70,32 @@
   flex-direction: column;
   align-items: flex-start;
   gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+
+.assistantAvatar {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  object-fit: cover;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--primary) 16%, transparent);
+  background: color-mix(in srgb, var(--surface) 92%, white 8%);
+}
+
+.assistantAvatarText {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--primary) 16%, transparent);
+  background: color-mix(in srgb, var(--surface) 92%, white 8%);
+  font-size: 18px;
+  line-height: 1;
 }
 
 .userText {
