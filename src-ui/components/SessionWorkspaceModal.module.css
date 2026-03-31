@@ -186,8 +186,22 @@
 }
 
 .sessionTitle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   color: var(--text);
   font-size: var(--text-base);
+}
+
+.sessionTitleText {
+  min-width: 0;
+}
+
+.streamingIndicator {
+  flex: 0 0 auto;
+  color: var(--primary);
+  letter-spacing: 0.08em;
+  animation: streaming-pulse 1s ease-in-out infinite;
 }
 
 .sessionMeta {
@@ -215,6 +229,17 @@
   color: var(--error);
   font-size: var(--text-sm);
   line-height: 1.5;
+}
+
+@keyframes streaming-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+
+  50% {
+    opacity: 1;
+  }
 }
 
 @media (max-width: 720px) {

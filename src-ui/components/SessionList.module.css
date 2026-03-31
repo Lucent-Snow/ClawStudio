@@ -154,13 +154,27 @@
 }
 
 .itemLabel {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 4px;
   grid-column: 2;
   grid-row: 1;
+  font-size: var(--text-sm);
+}
+
+.itemLabelText {
+  min-width: 0;
+  flex: 1;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-size: var(--text-sm);
+}
+
+.streamingIndicator {
+  flex: 0 0 auto;
+  color: var(--primary);
+  letter-spacing: 0.08em;
+  animation: streaming-pulse 1s ease-in-out infinite;
 }
 
 .itemMeta {
@@ -235,4 +249,15 @@
   color: var(--text);
   padding: 7px 10px;
   font-size: var(--text-sm);
+}
+
+@keyframes streaming-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+
+  50% {
+    opacity: 1;
+  }
 }

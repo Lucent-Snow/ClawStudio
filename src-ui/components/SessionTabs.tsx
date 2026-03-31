@@ -21,6 +21,7 @@ import { useMemo, useState } from "react";
 import type { SessionRow } from "../lib/types";
 import { broadcastSessionChange } from "../lib/window-sync";
 import { buildDisambiguatedSessionTitles } from "../lib/session-display";
+import { useChat } from "../stores/chat";
 import { useGateway } from "../stores/gateway";
 import styles from "./SessionTabs.module.css";
 
@@ -31,6 +32,7 @@ interface SortableTabProps {
   onClose: (key: string) => void;
   onSwitch: (key: string) => void;
   session: SessionRow;
+  streaming: boolean;
   title: string;
 }
 
@@ -41,6 +43,7 @@ function SortableTab({
   onClose,
   onSwitch,
   session,
+  streaming,
   title,
 }: SortableTabProps) {
   const {
@@ -87,7 +90,10 @@ function SortableTab({
           &#8801;
         </span>
         <span className={styles.tabCopy}>
-          <span className={styles.tabLabel}>{title}</span>
+          <span className={styles.tabLabel}>
+            <span className={styles.tabLabelText}>{title}</span>
+            {streaming && <span className={styles.streamingIndicator}>...</span>}
+          </span>
           {session.model && (
             <span className={styles.tabMeta}>{session.model}</span>
           )}
@@ -113,6 +119,7 @@ export function SessionTabs() {
   const switchSession = useGateway((state) => state.switchSession);
   const closeSessionTab = useGateway((state) => state.closeSessionTab);
   const reorderOpenSessions = useGateway((state) => state.reorderOpenSessions);
+  const isStreaming = useChat((state) => state.isStreaming);
   const [activeDragKey, setActiveDragKey] = useState<string | null>(null);
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -153,7 +160,6 @@ export function SessionTabs() {
     () => buildDisambiguatedSessionTitles(openSessions),
     [openSessions],
   );
-
   const handleDragStart = (event: DragStartEvent) => {
     setActiveDragKey(String(event.active.id));
   };
@@ -204,6 +210,7 @@ export function SessionTabs() {
               onClose={handleClose}
               onSwitch={handleSwitch}
               session={session}
+              streaming={isStreaming && session.key === currentSessionKey}
               title={sessionTitles.get(session.key) ?? session.key}
             />
           ))}

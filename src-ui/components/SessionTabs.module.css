@@ -117,11 +117,26 @@
 }
 
 .tabLabel {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   width: 100%;
+  font-size: var(--text-sm);
+}
+
+.tabLabelText {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: var(--text-sm);
+  flex: 1;
+}
+
+.streamingIndicator {
+  flex: 0 0 auto;
+  color: var(--primary);
+  letter-spacing: 0.08em;
+  animation: streaming-pulse 1s ease-in-out infinite;
 }
 
 .tabMeta {
@@ -146,4 +161,15 @@
 .closeButton:hover {
   color: var(--text);
   background: var(--surface-tint);
+}
+
+@keyframes streaming-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+
+  50% {
+    opacity: 1;
+  }
 }

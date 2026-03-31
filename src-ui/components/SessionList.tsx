@@ -76,6 +76,7 @@ interface SortableSessionItemProps {
   onRenameCancel: () => void;
   onRenameCommit: () => void | Promise<void>;
   session: SessionRow;
+  streaming: boolean;
   title: string;
 }
 
@@ -90,6 +91,7 @@ function SortableSessionItem({
   onRenameCancel,
   onRenameCommit,
   session,
+  streaming,
   title,
 }: SortableSessionItemProps) {
   const sourceTitle = getSessionSourceTitle(session);
@@ -164,7 +166,10 @@ function SortableSessionItem({
           >
             &#8801;
           </span>
-          <span className={styles.itemLabel}>{title}</span>
+          <span className={styles.itemLabel}>
+            <span className={styles.itemLabelText}>{title}</span>
+            {streaming && <span className={styles.streamingIndicator}>...</span>}
+          </span>
           {sourceTitle && (
             <span className={styles.itemMeta}>{sourceTitle}</span>
           )}
@@ -176,6 +181,7 @@ function SortableSessionItem({
 
 export function SessionList({ onOpenWorkspaceManager }: { onOpenWorkspaceManager: () => void }) {
   const clearMessages = useChat((state) => state.clearMessages);
+  const isStreaming = useChat((state) => state.isStreaming);
   const sessions = useGateway((state) => state.sessions);
   const currentKey = useGateway((state) => state.currentSessionKey);
   const openSessionKeys = useGateway((state) => state.openSessionKeys);
@@ -464,6 +470,7 @@ export function SessionList({ onOpenWorkspaceManager }: { onOpenWorkspaceManager
                   onRenameCancel={cancelRename}
                   onRenameCommit={commitRename}
                   session={session}
+                  streaming={isStreaming && session.key === currentKey}
                   title={sessionTitles.get(session.key) ?? session.key}
                 />
               ))}

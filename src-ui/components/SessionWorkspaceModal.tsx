@@ -7,12 +7,15 @@ import {
 } from "../lib/session-display";
 import { matchesSessionFilter } from "../lib/session-filter";
 import type { SessionRow } from "../lib/types";
+import { useChat } from "../stores/chat";
 import { useGateway } from "../stores/gateway";
 import { useWorkspace } from "../stores/workspace";
 import styles from "./SessionWorkspaceModal.module.css";
 
 export function SessionWorkspaceModal({ onClose }: { onClose: () => void }) {
   const sessions = useGateway((state) => state.sessions);
+  const isStreaming = useChat((state) => state.isStreaming);
+  const currentSessionKey = useGateway((state) => state.currentSessionKey);
   const status = useGateway((state) => state.status);
   const createSession = useGateway((state) => state.createSession);
   const switchSession = useGateway((state) => state.switchSession);
@@ -75,7 +78,10 @@ export function SessionWorkspaceModal({ onClose }: { onClose: () => void }) {
     return (
       <div className={styles.sessionCopy}>
         <div className={styles.sessionTitle}>
-          {titles.get(session.key) ?? session.key}
+          <span className={styles.sessionTitleText}>{titles.get(session.key) ?? session.key}</span>
+          {isStreaming && session.key === currentSessionKey && (
+            <span className={styles.streamingIndicator}>...</span>
+          )}
         </div>
         {sourceTitle && (
           <div className={styles.sessionMeta}>
