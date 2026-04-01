@@ -31,26 +31,21 @@ export function MessageBubble({
     resolvedAssistantAvatar &&
     (/^https?:\/\//i.test(resolvedAssistantAvatar) ||
       /^data:image\//i.test(resolvedAssistantAvatar) ||
-      resolvedAssistantAvatar.startsWith("/")),
+      /^blob:/i.test(resolvedAssistantAvatar)),
   );
+  const showAssistantAvatar = renderAssistantAvatarAsImage;
   const assistantAvatarNode =
     !isToolMessage ? (
       <div
-        className={`${styles.assistantAvatarSlot} ${resolvedAssistantAvatar ? "" : styles.assistantAvatarSlotEmpty}`.trim()}
-        aria-hidden={resolvedAssistantAvatar ? undefined : "true"}
+        className={`${styles.assistantAvatarSlot} ${showAssistantAvatar ? "" : styles.assistantAvatarSlotEmpty}`.trim()}
+        aria-hidden={showAssistantAvatar ? undefined : "true"}
       >
-        {resolvedAssistantAvatar ? (
-          renderAssistantAvatarAsImage ? (
-            <img
-              className={styles.assistantAvatar}
-              src={resolvedAssistantAvatar}
-              alt={resolvedAssistantName}
-            />
-          ) : (
-            <div className={styles.assistantAvatarText} aria-hidden="true">
-              {resolvedAssistantAvatar}
-            </div>
-          )
+        {showAssistantAvatar && resolvedAssistantAvatar ? (
+          <img
+            className={styles.assistantAvatar}
+            src={resolvedAssistantAvatar}
+            alt={resolvedAssistantName}
+          />
         ) : null}
       </div>
     ) : null;

@@ -118,6 +118,7 @@ export interface GatewayAgentIdentity {
   agentId: string;
   name?: string | null;
   avatar?: string | null;
+  avatarUrl?: string | null;
   emoji?: string | null;
 }
 

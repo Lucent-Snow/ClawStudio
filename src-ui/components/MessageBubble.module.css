@@ -98,20 +98,6 @@
   background: color-mix(in srgb, var(--surface) 92%, white 8%);
 }
 
-.assistantAvatarText {
-  width: 36px;
-  height: 36px;
-  flex: 0 0 36px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--primary) 16%, transparent);
-  background: color-mix(in srgb, var(--surface) 92%, white 8%);
-  font-size: 18px;
-  line-height: 1;
-}
-
 .userText {
   white-space: pre-wrap;
   word-break: break-word;

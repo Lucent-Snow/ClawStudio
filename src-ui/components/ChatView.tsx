@@ -44,28 +44,40 @@ function resolveAssistantAvatar(
   identity: GatewayAgentIdentity | null,
   gatewayUrl: string | null | undefined,
 ): string | null {
-  const avatar = normalizeText(identity?.avatar);
-  const emoji = normalizeText(identity?.emoji);
+  const avatar = normalizeText(identity?.avatarUrl) ?? normalizeText(identity?.avatar);
   if (!avatar) {
-    return emoji;
+    return null;
   }
 
-  if (/^https?:\/\//i.test(avatar) || /^data:image\//i.test(avatar)) {
+  if (
+    /^https?:\/\//i.test(avatar) ||
+    /^data:image\//i.test(avatar) ||
+    /^blob:/i.test(avatar)
+  ) {
     return avatar;
   }
 
-  if (avatar.startsWith("/")) {
-    const base = resolveGatewayHttpBase(gatewayUrl);
-    if (base) {
-      try {
-        return new URL(avatar, base).toString();
-      } catch {
-        return avatar;
-      }
-    }
+  if (/^file:/i.test(avatar)) {
+    return null;
   }
 
-  return avatar;
+  const base = resolveGatewayHttpBase(gatewayUrl);
+  if (!base) {
+    return null;
+  }
+
+  let resolved: URL;
+  try {
+    resolved = new URL(avatar, base);
+  } catch {
+    return null;
+  }
+
+  if (resolved.protocol === "file:") {
+    return null;
+  }
+
+  return resolved.toString();
 }
 
 function composeGatewayModelValue(model: string | null | undefined, provider?: string | null): string {
@@ -93,6 +105,8 @@ export function ChatView() {
   const [catalogModels, setCatalogModels] = useState<GatewayModelOption[]>([]);
   const [modelError, setModelError] = useState<string | null>(null);
   const [assistantIdentity, setAssistantIdentity] = useState<GatewayAgentIdentity | null>(null);
+  const [readyAssistantAvatar, setReadyAssistantAvatar] = useState<string | null>(null);
+  const [failedAssistantAvatar, setFailedAssistantAvatar] = useState<string | null>(null);
   const modelRequestIdRef = useRef(0);
   const identityRequestIdRef = useRef(0);
 
@@ -210,6 +224,10 @@ export function ChatView() {
   const modelSwitchDisabled = !currentKey || !connected || isStreaming || isApplyingModel;
   const assistantName = normalizeText(assistantIdentity?.name) ?? "助手";
   const assistantAvatar = resolveAssistantAvatar(assistantIdentity, gatewayUrl);
+  const displayAssistantAvatar =
+    assistantAvatar && readyAssistantAvatar === assistantAvatar && failedAssistantAvatar !== assistantAvatar
+      ? assistantAvatar
+      : null;
   const streamingMessage = isStreaming
       ? {
           id: "__streaming__",
@@ -222,6 +240,39 @@ export function ChatView() {
         toolLabel: null,
       }
     : null;
+
+  useEffect(() => {
+    if (!assistantAvatar) {
+      setReadyAssistantAvatar(null);
+      setFailedAssistantAvatar(null);
+      return;
+    }
+
+    let cancelled = false;
+    const image = new Image();
+
+    setReadyAssistantAvatar(null);
+    setFailedAssistantAvatar(null);
+
+    image.onload = () => {
+      if (!cancelled) {
+        setReadyAssistantAvatar(assistantAvatar);
+      }
+    };
+    image.onerror = () => {
+      if (!cancelled) {
+        setReadyAssistantAvatar(null);
+        setFailedAssistantAvatar(assistantAvatar);
+      }
+    };
+    image.src = assistantAvatar;
+
+    return () => {
+      cancelled = true;
+      image.onload = null;
+      image.onerror = null;
+    };
+  }, [assistantAvatar]);
 
   const handleModelApply = async (nextModel = modelDraft) => {
     if (!currentKey || !connected || isStreaming || isApplyingModel) {
@@ -309,7 +360,7 @@ export function ChatView() {
               key={m.id}
               message={m}
               assistantName={assistantName}
-              assistantAvatar={assistantAvatar}
+              assistantAvatar={displayAssistantAvatar}
             />
           ))}
           {streamingMessage && (
@@ -318,7 +369,7 @@ export function ChatView() {
               message={streamingMessage}
               isStreaming
               assistantName={assistantName}
-              assistantAvatar={assistantAvatar}
+              assistantAvatar={displayAssistantAvatar}
             />
           )}
         </div>
